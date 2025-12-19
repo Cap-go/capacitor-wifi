@@ -175,53 +175,23 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Helper Methods
 
     private func getCurrentSSID() -> String? {
-        if #available(iOS 14.0, *) {
-            var currentSSID: String?
-            NEHotspotNetwork.fetchCurrent { network in
-                currentSSID = network?.ssid
-            }
-            return currentSSID
-        } else {
-            guard let interfaces = CNCopySupportedInterfaces() as? [String] else {
-                return nil
-            }
-
-            for interface in interfaces {
-                guard let interfaceInfo = CNCopyCurrentNetworkInfo(interface as CFString) as NSDictionary? else {
-                    continue
-                }
-
-                return interfaceInfo[kCNNetworkInfoKeySSID as String] as? String
-            }
-
-            return nil
+        var currentSSID: String?
+        NEHotspotNetwork.fetchCurrent { network in
+            currentSSID = network?.ssid
         }
+        return currentSSID
     }
 
     private func getLocationPermissionStatus() -> String {
-        if #available(iOS 14.0, *) {
-            switch CLLocationManager.authorizationStatus() {
-            case .authorizedAlways, .authorizedWhenInUse:
-                return "granted"
-            case .denied, .restricted:
-                return "denied"
-            case .notDetermined:
-                return "prompt"
-            @unknown default:
-                return "prompt"
-            }
-        } else {
-            let status = CLLocationManager.authorizationStatus()
-            switch status {
-            case .authorizedAlways, .authorizedWhenInUse:
-                return "granted"
-            case .denied, .restricted:
-                return "denied"
-            case .notDetermined:
-                return "prompt"
-            @unknown default:
-                return "prompt"
-            }
+        switch CLLocationManager.authorizationStatus() {
+        case .authorizedAlways, .authorizedWhenInUse:
+            return "granted"
+        case .denied, .restricted:
+            return "denied"
+        case .notDetermined:
+            return "prompt"
+        @unknown default:
+            return "prompt"
         }
     }
 }
