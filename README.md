@@ -92,6 +92,7 @@ connect(options: ConnectOptions) => Promise<void>
 
 Connect to a Wi-Fi network.
 On Android, this creates a temporary connection that doesn't route traffic through the network by default.
+Set autoRouteTraffic to true to bind app traffic to the connected network (useful for local/device-hosted APs).
 For a persistent connection on Android, use addNetwork() instead.
 On iOS, this creates a persistent connection.
 
@@ -323,11 +324,12 @@ Options for adding a network
 
 Options for connecting to a network
 
-| Prop               | Type                 | Description                                               | Default            | Since |
-| ------------------ | -------------------- | --------------------------------------------------------- | ------------------ | ----- |
-| **`ssid`**         | <code>string</code>  | The SSID of the network to connect to                     |                    | 7.0.0 |
-| **`password`**     | <code>string</code>  | The password for the network (optional for open networks) |                    | 7.0.0 |
-| **`isHiddenSsid`** | <code>boolean</code> | Whether the network is hidden (Android only)              | <code>false</code> | 7.0.0 |
+| Prop                   | Type                 | Description                                                                                                                                                                                                                                                                                                                         | Default            | Since |
+| ---------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
+| **`ssid`**             | <code>string</code>  | The SSID of the network to connect to                                                                                                                                                                                                                                                                                               |                    | 7.0.0 |
+| **`password`**         | <code>string</code>  | The password for the network (optional for open networks)                                                                                                                                                                                                                                                                           |                    | 7.0.0 |
+| **`isHiddenSsid`**     | <code>boolean</code> | Whether the network is hidden (Android only)                                                                                                                                                                                                                                                                                        | <code>false</code> | 7.0.0 |
+| **`autoRouteTraffic`** | <code>boolean</code> | Whether to automatically route app traffic through the connected Wi-Fi network (Android only) When enabled, it binds the app process to the connected network using ConnectivityManager.bindProcessToNetwork() This is useful for connecting to local/device-hosted APs (e.g., ESP32, IoT devices) that don't have internet access. | <code>false</code> | 7.0.0 |
 
 
 #### DisconnectOptions

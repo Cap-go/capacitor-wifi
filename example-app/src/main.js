@@ -101,11 +101,12 @@ return result;
               id: 'connect',
               label: 'Connect to network',
               description: 'Connects to a WiFi network. Creates temporary connection on Android, persistent on iOS.',
-              inputs: [{ name: 'ssid', label: 'SSID', type: 'text', value: '' }, { name: 'password', label: 'Password (optional)', type: 'text', value: '' }, { name: 'isHiddenSsid', label: 'Hidden network (Android)', type: 'checkbox', value: false }],
+              inputs: [{ name: 'ssid', label: 'SSID', type: 'text', value: '' }, { name: 'password', label: 'Password (optional)', type: 'text', value: '' }, { name: 'isHiddenSsid', label: 'Hidden network (Android)', type: 'checkbox', value: false }, { name: 'autoRouteTraffic', label: 'Auto-route traffic (Android)', type: 'checkbox', value: false }],
               run: async (values) => {
                 const options = { ssid: values.ssid };
 if (values.password) options.password = values.password;
 if (values.isHiddenSsid) options.isHiddenSsid = true;
+if (values.autoRouteTraffic) options.autoRouteTraffic = true;
 await plugin.connect(options);
 return 'Connected successfully';
               },
