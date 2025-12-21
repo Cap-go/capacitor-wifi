@@ -233,101 +233,34 @@ public class CapacitorWifiPlugin extends Plugin {
                 @Override
                 public void onAvailable(@NonNull Network network) {
                     super.onAvailable(network);
-                    android.util.Log.d("CapacitorWifi", "Network available: " + network);
-
-                    // Don't resolve yet - wait for capabilities to be confirmed
-                }
-
-                @Override
-                public void onCapabilitiesChanged(@NonNull Network network, @NonNull NetworkCapabilities networkCapabilities) {
-                    super.onCapabilitiesChanged(network, networkCapabilities);
-                    android.util.Log.d("CapacitorWifi", "Network capabilities changed: " + network);
-
+                    
                     // Bind process to network if autoRouteTraffic is enabled
-                    // Do this when capabilities change to ensure network is fully ready
                     if (autoRouteTraffic != null && autoRouteTraffic) {
-                        // Use a handler to bind after a short delay to ensure network is fully established
-                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-                            new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                            // Unbind from previous network if any
-                                            if (boundNetwork != null) {
-                                                connectivityManager.bindProcessToNetwork(null);
-                                                android.util.Log.d("CapacitorWifi", "Unbound from previous network");
-                                            }
-
-                                            // Get the currently active network - this should be our WiFi network now
-                                            Network activeNetwork = connectivityManager.getActiveNetwork();
-                                            Network networkToBind = network;
-
-                                            // Prefer the active network if it matches
-                                            if (activeNetwork != null) {
-                                                NetworkCapabilities activeCaps = connectivityManager.getNetworkCapabilities(activeNetwork);
-                                                if (activeCaps != null && activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                                                    networkToBind = activeNetwork;
-                                                    android.util.Log.d(
-                                                        "CapacitorWifi",
-                                                        "Using active WiFi network for binding: " + networkToBind
-                                                    );
-                                                }
-                                            }
-
-                                            // Bind to the network
-                                            boolean bound = connectivityManager.bindProcessToNetwork(networkToBind);
-                                            if (bound) {
-                                                boundNetwork = networkToBind;
-                                                android.util.Log.d(
-                                                    "CapacitorWifi",
-                                                    "Successfully bound process to network: " + networkToBind
-                                                );
-
-                                                // Verify binding worked
-                                                Network boundNet = connectivityManager.getBoundNetworkForProcess();
-                                                if (boundNet != null && boundNet.equals(networkToBind)) {
-                                                    android.util.Log.d("CapacitorWifi", "Verified: Process is bound to network");
-                                                } else {
-                                                    android.util.Log.w(
-                                                        "CapacitorWifi",
-                                                        "Warning: Binding verification failed. Bound: " +
-                                                            boundNet +
-                                                            ", Expected: " +
-                                                            networkToBind
-                                                    );
-                                                }
-                                            } else {
-                                                android.util.Log.e(
-                                                    "CapacitorWifi",
-                                                    "Failed to bind process to network: connectivityManager returned false"
-                                                );
-                                            }
-                                        }
-                                    } catch (Exception e) {
-                                        // Log error but don't fail the connection
-                                        android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage(), e);
-                                    }
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                // Unbind from previous network if any
+                                if (boundNetwork != null) {
+                                    connectivityManager.bindProcessToNetwork(null);
                                 }
-                            },
-                            500
-                        ); // Wait 500ms for network to be fully established
-                    } else {
-                        // Ensure we're not bound if autoRouteTraffic is disabled
-                        if (boundNetwork != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            connectivityManager.bindProcessToNetwork(null);
-                            boundNetwork = null;
+                                
+                                // Bind to the new network
+                                boolean bound = connectivityManager.bindProcessToNetwork(network);
+                                if (bound) {
+                                    boundNetwork = network;
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Log error but don't fail the connection
+                            android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
                         }
                     }
-
-                    // Resolve the call once capabilities are confirmed
+                    
                     call.resolve();
                 }
 
                 @Override
                 public void onUnavailable() {
                     super.onUnavailable();
-                    android.util.Log.e("CapacitorWifi", "Network unavailable");
                     call.reject("Failed to connect to network");
                 }
             };
@@ -394,41 +327,27 @@ public class CapacitorWifiPlugin extends Plugin {
 
             // Bind process to network if autoRouteTraffic is enabled
             if (autoRouteTraffic != null && autoRouteTraffic) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        // Wait a bit for the connection to establish
-                        Thread.sleep(1000); // Increased wait time
-
-                        // Unbind from previous network if any
-                        if (boundNetwork != null) {
-                            connectivityManager.bindProcessToNetwork(null);
-                        }
-
-                        Network activeNetwork = connectivityManager.getActiveNetwork();
-                        if (activeNetwork != null) {
-                            boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
-                            if (bound) {
-                                boundNetwork = activeNetwork;
-                                android.util.Log.d("CapacitorWifi", "Successfully bound process to network (legacy): " + activeNetwork);
-                            } else {
-                                android.util.Log.e(
-                                    "CapacitorWifi",
-                                    "Failed to bind process to network: connectivityManager returned false"
-                                );
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // Use handler to bind asynchronously after connection is established
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            // Unbind from previous network if any
+                            if (boundNetwork != null) {
+                                connectivityManager.bindProcessToNetwork(null);
                             }
-                        } else {
-                            android.util.Log.w("CapacitorWifi", "No active network found to bind to");
+
+                            Network activeNetwork = connectivityManager.getActiveNetwork();
+                            if (activeNetwork != null) {
+                                boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
+                                if (bound) {
+                                    boundNetwork = activeNetwork;
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Log error but don't fail the connection
+                            android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
                         }
-                    }
-                } catch (Exception e) {
-                    // Log error but don't fail the connection
-                    android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
-                }
-            } else {
-                // Ensure we're not bound if autoRouteTraffic is disabled
-                if (boundNetwork != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    connectivityManager.bindProcessToNetwork(null);
-                    boundNetwork = null;
+                    }, 500);
                 }
             }
 
