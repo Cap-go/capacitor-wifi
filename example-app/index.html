@@ -5,18 +5,160 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@capgo/capacitor-wifi Example</title>
     <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      .nav-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      .nav-button {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.6);
+        color: inherit;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+      .nav-button:hover {
+        background: rgba(15, 23, 42, 0.8);
+      }
+      .nav-button.active {
+        background: linear-gradient(120deg, #22d3ee, #6366f1);
+        color: #0f172a;
+        border: none;
+      }
+      .page-view {
+        display: none;
+      }
+      .page-view.active {
+        display: block;
+      }
+      .http-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .form-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+      }
+      .form-row .form-field {
+        flex: 1;
+      }
+      .form-row .form-field:last-child {
+        flex: 0 0 100px;
+      }
+      button#make-request {
+        align-self: flex-start;
+        padding: 0.75rem 1.6rem;
+        font-size: 1rem;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(120deg, #22d3ee, #6366f1);
+        color: #0f172a;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button#make-request:hover {
+        filter: brightness(1.08);
+      }
+      button#make-request:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .status-indicator {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-left: 0.5rem;
+      }
+      .status-success {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+      }
+      .status-error {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+      }
+      .status-pending {
+        background: rgba(148, 163, 184, 0.2);
+        color: #94a3b8;
+      }
+    </style>
   </head>
   <body>
     <main class="container">
-      <h1>@capgo/capacitor-wifi Example</h1>
-      <p class="lead">Run native plugin APIs with the source linked locally.</p>
-      <label for="action-select">Available actions</label>
-      <select id="action-select"></select>
-      <div id="action-description" class="action-description"></div>
-      <div id="action-form" class="form-grid"></div>
-      <button id="run-action">Run action</button>
-      <pre id="plugin-output">Select an action to begin.</pre>
+      <div class="nav-buttons">
+        <button class="nav-button active" data-page="wifi">WiFi Actions</button>
+        <button class="nav-button" data-page="http">HTTP Test</button>
+      </div>
+
+      <!-- WiFi Actions Page -->
+      <div id="wifi-page" class="page-view active">
+        <h1>@capgo/capacitor-wifi Example</h1>
+        <p class="lead">Run native plugin APIs with the source linked locally.</p>
+        <label for="action-select">Available actions</label>
+        <select id="action-select"></select>
+        <div id="action-description" class="action-description"></div>
+        <div id="action-form" class="form-grid"></div>
+        <button id="run-action">Run action</button>
+        <pre id="plugin-output">Select an action to begin.</pre>
+      </div>
+
+      <!-- HTTP Test Page -->
+      <div id="http-page" class="page-view">
+        <h1>HTTP Connection Test</h1>
+        <p class="lead">Test HTTP connections to verify traffic routing through connected Wi-Fi network.</p>
+        
+        <div class="http-form">
+          <div class="form-row">
+            <div class="form-field">
+              <label for="ip-address">IP Address</label>
+              <input type="text" id="ip-address" placeholder="192.168.1.1" value="192.168.1.1" />
+            </div>
+            <div class="form-field">
+              <label for="port">Port</label>
+              <input type="number" id="port" placeholder="80" value="80" min="1" max="65535" />
+            </div>
+            <div class="form-field">
+              <label for="path">Path</label>
+              <input type="text" id="path" placeholder="/" value="/" />
+            </div>
+          </div>
+          
+          <div class="form-field">
+            <label for="method">HTTP Method</label>
+            <select id="method">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+              <option value="PATCH">PATCH</option>
+            </select>
+          </div>
+          
+          <button id="make-request">Make HTTP Request</button>
+          
+          <div class="form-field">
+            <label>
+              Response Status
+              <span id="status-indicator" class="status-indicator status-pending">Ready</span>
+            </label>
+          </div>
+          
+          <div class="form-field">
+            <label for="response-output">Response (as text)</label>
+            <pre id="response-output">Ready to make HTTP request. Enter IP address and port, then click "Make HTTP Request".</pre>
+          </div>
+        </div>
+      </div>
     </main>
     <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/http-test.js"></script>
   </body>
 </html>

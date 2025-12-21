@@ -287,3 +287,21 @@ runButton.addEventListener('click', async () => {
 });
 
 populateActions();
+
+// Navigation between pages
+const navButtons = document.querySelectorAll('.nav-button');
+const pageViews = document.querySelectorAll('.page-view');
+
+navButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    const targetPage = button.dataset.page;
+    
+    // Update active button
+    navButtons.forEach(btn => btn.classList.remove('active'));
+    button.classList.add('active');
+    
+    // Show/hide pages
+    pageViews.forEach(view => view.classList.remove('active'));
+    document.getElementById(`${targetPage}-page`).classList.add('active');
+  });
+});

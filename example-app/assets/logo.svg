@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="letter-clip-0">
+      <path d="M 749 714 L 941 0 L 787 0 L 670 492 L 668 492 L 546 0 L 399 0 L 275 486 L 273 486 L 160 0 L 3 0 L 192 714 L 351 714 L 470 228 L 472 228 L 593 714 Z" transform="translate(7.338,7.500) scale(0.054,0.119)" />
+    </clipPath>
+    <clipPath id="letter-clip-1">
+      <path d="M 69 0 L 69 714 L 226 714 L 226 419 L 525 419 L 525 297 L 226 297 L 226 132 L 571 132 L 571 0 Z" transform="translate(56.721,7.500) scale(0.054,0.119)" />
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="50" height="50" fill="#F5ECE0" />
+  <rect x="50" y="0" width="50" height="50" fill="#5F99AE" />
+  <rect x="0" y="50" width="50" height="50" fill="#336D82" />
+  <rect x="50" y="50" width="50" height="50" fill="#693382" />
+  <g clip-path="url(#letter-clip-0)">
+    <path d="M 0 0 H 100 V 50 H 0 Z" fill="#0a131f" />
+    <path d="M 0 50 H 100 V 100 H 0 Z" fill="#cc927d" />
+  </g>
+  <g clip-path="url(#letter-clip-1)">
+    <path d="M 0 0 H 100 V 50 H 0 Z" fill="#a06651" />
+    <path d="M 0 50 H 100 V 100 H 0 Z" fill="#96cc7d" />
+  </g>
+</svg>
