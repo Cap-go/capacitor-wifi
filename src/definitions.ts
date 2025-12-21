@@ -30,6 +30,7 @@ export interface CapacitorWifiPlugin {
   /**
    * Connect to a Wi-Fi network.
    * On Android, this creates a temporary connection that doesn't route traffic through the network by default.
+   * Set autoRouteTraffic to true to bind app traffic to the connected network (useful for local/device-hosted APs).
    * For a persistent connection on Android, use addNetwork() instead.
    * On iOS, this creates a persistent connection.
    *
@@ -41,7 +42,8 @@ export interface CapacitorWifiPlugin {
    * ```typescript
    * await CapacitorWifi.connect({
    *   ssid: 'MyNetwork',
-   *   password: 'mypassword'
+   *   password: 'mypassword',
+   *   autoRouteTraffic: true // Android only: route app traffic through this network
    * });
    * ```
    */
@@ -301,6 +303,16 @@ export interface ConnectOptions {
    * @default false
    */
   isHiddenSsid?: boolean;
+
+  /**
+   * Whether to automatically route app traffic through the connected Wi-Fi network (Android only)
+   * When enabled, it binds the app process to the connected network using ConnectivityManager.bindProcessToNetwork()
+   * This is useful for connecting to local/device-hosted APs (e.g., ESP32, IoT devices) that don't have internet access.
+   *
+   * @since 7.0.0
+   * @default false
+   */
+  autoRouteTraffic?: boolean;
 }
 
 /**
