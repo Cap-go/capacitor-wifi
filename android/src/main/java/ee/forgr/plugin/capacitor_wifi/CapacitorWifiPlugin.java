@@ -238,18 +238,16 @@ public class CapacitorWifiPlugin extends Plugin {
                     // Bind process to network if autoRouteTraffic is enabled
                     if (autoRouteTraffic != null && autoRouteTraffic) {
                         try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                synchronized (boundNetworkLock) {
-                                    // Unbind from previous network if any
-                                    if (boundNetwork != null) {
-                                        connectivityManager.bindProcessToNetwork(null);
-                                    }
+                            synchronized (boundNetworkLock) {
+                                // Unbind from previous network if any
+                                if (boundNetwork != null) {
+                                    connectivityManager.bindProcessToNetwork(null);
+                                }
 
-                                    // Bind to the new network
-                                    boolean bound = connectivityManager.bindProcessToNetwork(network);
-                                    if (bound) {
-                                        boundNetwork = network;
-                                    }
+                                // Bind to the new network
+                                boolean bound = connectivityManager.bindProcessToNetwork(network);
+                                if (bound) {
+                                    boundNetwork = network;
                                 }
                             }
                         } catch (Exception e) {
@@ -330,33 +328,31 @@ public class CapacitorWifiPlugin extends Plugin {
 
             // Bind process to network if autoRouteTraffic is enabled
             if (autoRouteTraffic != null && autoRouteTraffic) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    // Use handler to bind asynchronously after connection is established
-                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-                        () -> {
-                            try {
-                                synchronized (boundNetworkLock) {
-                                    // Unbind from previous network if any
-                                    if (boundNetwork != null) {
-                                        connectivityManager.bindProcessToNetwork(null);
-                                    }
+                // Use handler to bind asynchronously after connection is established
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                    () -> {
+                        try {
+                            synchronized (boundNetworkLock) {
+                                // Unbind from previous network if any
+                                if (boundNetwork != null) {
+                                    connectivityManager.bindProcessToNetwork(null);
+                                }
 
-                                    Network activeNetwork = connectivityManager.getActiveNetwork();
-                                    if (activeNetwork != null) {
-                                        boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
-                                        if (bound) {
-                                            boundNetwork = activeNetwork;
-                                        }
+                                Network activeNetwork = connectivityManager.getActiveNetwork();
+                                if (activeNetwork != null) {
+                                    boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
+                                    if (bound) {
+                                        boundNetwork = activeNetwork;
                                     }
                                 }
-                            } catch (Exception e) {
-                                // Log error but don't fail the connection
-                                android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
                             }
-                        },
-                        500
-                    );
-                }
+                        } catch (Exception e) {
+                            // Log error but don't fail the connection
+                            android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
+                        }
+                    },
+                    500
+                );
             }
 
             call.resolve();
@@ -370,7 +366,7 @@ public class CapacitorWifiPlugin extends Plugin {
         try {
             // Unbind from network if we were bound
             synchronized (boundNetworkLock) {
-                if (boundNetwork != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (boundNetwork != null) {
                     connectivityManager.bindProcessToNetwork(null);
                     boundNetwork = null;
                     android.util.Log.d("CapacitorWifi", "Unbound process from network");
@@ -432,19 +428,11 @@ public class CapacitorWifiPlugin extends Plugin {
         try {
             String ipAddress = null;
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Network network = connectivityManager.getActiveNetwork();
-                if (network != null) {
-                    NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
-                    if (capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                        ipAddress = getWifiIpAddress();
-                    }
-                }
-            } else {
-                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-                if (wifiInfo != null) {
-                    int ip = wifiInfo.getIpAddress();
-                    ipAddress = String.format("%d.%d.%d.%d", (ip & 0xff), ((ip >> 8) & 0xff), ((ip >> 16) & 0xff), ((ip >> 24) & 0xff));
+            Network network = connectivityManager.getActiveNetwork();
+            if (network != null) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                    ipAddress = getWifiIpAddress();
                 }
             }
 
