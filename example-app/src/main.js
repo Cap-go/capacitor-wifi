@@ -68,6 +68,16 @@ return result;
               },
             },
 {
+              id: 'get-wifi-info',
+              label: 'Get WiFi info',
+              description: 'Gets comprehensive information about the currently connected WiFi network including SSID, BSSID, IP, frequency, link speed, and signal strength in a single call.',
+              inputs: [],
+              run: async (values) => {
+                const result = await plugin.getWifiInfo();
+return result;
+              },
+            },
+{
               id: 'is-enabled',
               label: 'Check if WiFi enabled (Android)',
               description: 'Checks if WiFi is enabled on the device. Android only.',
