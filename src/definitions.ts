@@ -449,8 +449,8 @@ export interface WifiInfo {
   ssid: string;
 
   /**
-   * The BSSID (MAC address) of the access point
-   * Not available on iOS
+   * The BSSID (MAC address) of the access point.
+   * Not available on iOS.
    *
    * @since 7.0.0
    */
@@ -464,25 +464,25 @@ export interface WifiInfo {
   ip: string;
 
   /**
-   * The network frequency in MHz
-   * Not available on iOS
+   * The network frequency in MHz.
+   * Not available on iOS.
    *
    * @since 7.0.0
    */
   frequency?: number;
 
   /**
-   * The connection speed in Mbps
-   * Not available on iOS
+   * The connection speed in Mbps.
+   * Not available on iOS.
    *
    * @since 7.0.0
    */
   linkSpeed?: number;
 
   /**
-   * The signal strength (0-100)
-   * Calculated from RSSI on Android
-   * Not available on iOS
+   * The signal strength (0-100).
+   * Calculated from RSSI on Android.
+   * Not available on iOS.
    *
    * @since 7.0.0
    */

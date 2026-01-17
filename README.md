@@ -411,14 +411,14 @@ Result from getSsid()
 
 Comprehensive WiFi information
 
-| Prop                 | Type                | Description                                                                      | Since |
-| -------------------- | ------------------- | -------------------------------------------------------------------------------- | ----- |
-| **`ssid`**           | <code>string</code> | The SSID (network name) of the current network                                   | 7.0.0 |
-| **`bssid`**          | <code>string</code> | The BSSID (MAC address) of the access point Not available on iOS                 | 7.0.0 |
-| **`ip`**             | <code>string</code> | The device's IP address on the network                                           | 7.0.0 |
-| **`frequency`**      | <code>number</code> | The network frequency in MHz Not available on iOS                                | 7.0.0 |
-| **`linkSpeed`**      | <code>number</code> | The connection speed in Mbps Not available on iOS                                | 7.0.0 |
-| **`signalStrength`** | <code>number</code> | The signal strength (0-100) Calculated from RSSI on Android Not available on iOS | 7.0.0 |
+| Prop                 | Type                | Description                                                                         | Since |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------- | ----- |
+| **`ssid`**           | <code>string</code> | The SSID (network name) of the current network                                      | 7.0.0 |
+| **`bssid`**          | <code>string</code> | The BSSID (MAC address) of the access point. Not available on iOS.                  | 7.0.0 |
+| **`ip`**             | <code>string</code> | The device's IP address on the network                                              | 7.0.0 |
+| **`frequency`**      | <code>number</code> | The network frequency in MHz. Not available on iOS.                                 | 7.0.0 |
+| **`linkSpeed`**      | <code>number</code> | The connection speed in Mbps. Not available on iOS.                                 | 7.0.0 |
+| **`signalStrength`** | <code>number</code> | The signal strength (0-100). Calculated from RSSI on Android. Not available on iOS. | 7.0.0 |
 
 
 #### IsEnabledResult
