@@ -12,6 +12,7 @@ import type {
   IsEnabledResult,
   PermissionStatus,
   RequestPermissionsOptions,
+  WifiInfo,
 } from './definitions';
 
 export class CapacitorWifiWeb extends WebPlugin implements CapacitorWifiPlugin {
@@ -40,6 +41,10 @@ export class CapacitorWifiWeb extends WebPlugin implements CapacitorWifiPlugin {
   }
 
   async getSsid(): Promise<GetSsidResult> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async getWifiInfo(): Promise<WifiInfo> {
     throw this.unimplemented('Not implemented on web.');
   }
 
