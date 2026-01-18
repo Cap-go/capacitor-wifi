@@ -17,6 +17,7 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getIpAddress", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getRssi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getSsid", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getWifiInfo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isEnabled", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startScan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "checkPermissions", returnType: CAPPluginReturnPromise),
@@ -148,6 +149,28 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func getWifiInfo(_ call: CAPPluginCall) {
+        guard let ssid = getCurrentSSID() else {
+            call.reject("Failed to get SSID")
+            return
+        }
+
+        var result: [String: Any] = ["ssid": ssid]
+
+        // Get IP Address
+        if let ipAddress = getIPAddress() {
+            result["ip"] = ipAddress
+        } else {
+            call.reject("Failed to get IP address")
+            return
+        }
+
+        // Note: BSSID, frequency, linkSpeed, and signalStrength are not available on iOS
+        // through public APIs, so we only return ssid and ip
+
+        call.resolve(result)
+    }
+
     @objc func isEnabled(_ call: CAPPluginCall) {
         call.reject("Not supported on iOS")
     }
@@ -180,6 +203,36 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
             currentSSID = network?.ssid
         }
         return currentSSID
+    }
+
+    private func getIPAddress() -> String? {
+        var address: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
+            return nil
+        }
+
+        defer { freeifaddrs(ifaddr) }
+
+        for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+            let interface = ptr.pointee
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+
+            if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
+                let name = String(cString: interface.ifa_name)
+                if name == "en0" {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                                &hostname, socklen_t(hostname.count),
+                                nil, socklen_t(0), NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                    break
+                }
+            }
+        }
+
+        return address
     }
 
     private func getLocationPermissionStatus() -> String {

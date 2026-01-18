@@ -127,6 +127,28 @@ export interface CapacitorWifiPlugin {
   getSsid(): Promise<GetSsidResult>;
 
   /**
+   * Get comprehensive information about the currently connected WiFi network.
+   * This method provides detailed network information including SSID, BSSID, IP address,
+   * frequency, link speed, and signal strength in a single call.
+   * On iOS, some fields may not be available and will be undefined.
+   *
+   * @returns Promise that resolves with the WiFi information
+   * @throws Error if getting WiFi info fails
+   * @since 7.0.0
+   * @example
+   * ```typescript
+   * const info = await CapacitorWifi.getWifiInfo();
+   * console.log('Network:', info.ssid);
+   * console.log('BSSID:', info.bssid);
+   * console.log('IP:', info.ip);
+   * console.log('Frequency:', info.frequency, 'MHz');
+   * console.log('Speed:', info.linkSpeed, 'Mbps');
+   * console.log('Signal:', info.signalStrength);
+   * ```
+   */
+  getWifiInfo(): Promise<WifiInfo>;
+
+  /**
    * Check if Wi-Fi is enabled on the device.
    * Only available on Android.
    *
@@ -411,6 +433,60 @@ export interface GetSsidResult {
    * @since 7.0.0
    */
   ssid: string;
+}
+
+/**
+ * Comprehensive WiFi information
+ *
+ * @since 7.0.0
+ */
+export interface WifiInfo {
+  /**
+   * The SSID (network name) of the current network
+   *
+   * @since 7.0.0
+   */
+  ssid: string;
+
+  /**
+   * The BSSID (MAC address) of the access point.
+   * Not available on iOS.
+   *
+   * @since 7.0.0
+   */
+  bssid?: string;
+
+  /**
+   * The device's IP address on the network
+   *
+   * @since 7.0.0
+   */
+  ip: string;
+
+  /**
+   * The network frequency in MHz.
+   * Not available on iOS.
+   *
+   * @since 7.0.0
+   */
+  frequency?: number;
+
+  /**
+   * The connection speed in Mbps.
+   * Not available on iOS.
+   *
+   * @since 7.0.0
+   */
+  linkSpeed?: number;
+
+  /**
+   * The signal strength (0-100).
+   * Calculated from RSSI on Android.
+   * Not available on iOS.
+   *
+   * @since 7.0.0
+   */
+  signalStrength?: number;
 }
 
 /**

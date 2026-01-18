@@ -518,6 +518,82 @@ public class CapacitorWifiPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getWifiInfo(PluginCall call) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "getWifiInfoCallback");
+            return;
+        }
+
+        try {
+            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+            if (wifiInfo == null) {
+                call.reject("Failed to get WiFi info");
+                return;
+            }
+
+            JSObject ret = new JSObject();
+
+            // Get SSID
+            String ssid = wifiInfo.getSSID();
+            if (ssid != null) {
+                ssid = ssid.replace("\"", "");
+                ret.put("ssid", ssid);
+            } else {
+                call.reject("No SSID found");
+                return;
+            }
+
+            // Get BSSID (MAC address of access point)
+            String bssid = wifiInfo.getBSSID();
+            if (bssid != null) {
+                ret.put("bssid", bssid);
+            }
+
+            // Get IP Address
+            String ipAddress = getWifiIpAddress();
+            if (ipAddress != null && !ipAddress.isEmpty()) {
+                ret.put("ip", ipAddress);
+            } else {
+                call.reject("No IP address found");
+                return;
+            }
+
+            // Get Frequency (API 21+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                int frequency = wifiInfo.getFrequency();
+                ret.put("frequency", frequency);
+            }
+
+            // Get Link Speed
+            int linkSpeed = wifiInfo.getLinkSpeed();
+            ret.put("linkSpeed", linkSpeed);
+
+            // Get Signal Strength (0-100)
+            int rssi = wifiInfo.getRssi();
+            int signalStrength = calculateSignalStrength(rssi);
+            ret.put("signalStrength", signalStrength);
+
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to get WiFi info: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Calculate signal strength percentage (0-100) from RSSI
+     * RSSI typically ranges from -100 (weak) to -50 (strong)
+     */
+    private int calculateSignalStrength(int rssi) {
+        if (rssi <= -100) {
+            return 0;
+        } else if (rssi >= -50) {
+            return 100;
+        } else {
+            return 2 * (rssi + 100);
+        }
+    }
+
+    @PluginMethod
     public void isEnabled(PluginCall call) {
         try {
             boolean enabled = wifiManager.isWifiEnabled();
@@ -616,6 +692,15 @@ public class CapacitorWifiPlugin extends Plugin {
     private void getSsidCallback(PluginCall call) {
         if (getPermissionState("location") == PermissionState.GRANTED) {
             getSsid(call);
+        } else {
+            call.reject("Location permission is required");
+        }
+    }
+
+    @PermissionCallback
+    private void getWifiInfoCallback(PluginCall call) {
+        if (getPermissionState("location") == PermissionState.GRANTED) {
+            getWifiInfo(call);
         } else {
             call.reject("Location permission is required");
         }

@@ -47,6 +47,7 @@ npx cap sync
 * [`getIpAddress()`](#getipaddress)
 * [`getRssi()`](#getrssi)
 * [`getSsid()`](#getssid)
+* [`getWifiInfo()`](#getwifiinfo)
 * [`isEnabled()`](#isenabled)
 * [`startScan()`](#startscan)
 * [`checkPermissions()`](#checkpermissions)
@@ -181,6 +182,24 @@ Get the service set identifier (SSID) of the current network.
 Available on both Android and iOS.
 
 **Returns:** <code>Promise&lt;<a href="#getssidresult">GetSsidResult</a>&gt;</code>
+
+**Since:** 7.0.0
+
+--------------------
+
+
+### getWifiInfo()
+
+```typescript
+getWifiInfo() => Promise<WifiInfo>
+```
+
+Get comprehensive information about the currently connected WiFi network.
+This method provides detailed network information including SSID, BSSID, IP address,
+frequency, link speed, and signal strength in a single call.
+On iOS, some fields may not be available and will be undefined.
+
+**Returns:** <code>Promise&lt;<a href="#wifiinfo">WifiInfo</a>&gt;</code>
 
 **Since:** 7.0.0
 
@@ -386,6 +405,20 @@ Result from getSsid()
 | Prop       | Type                | Description                     | Since |
 | ---------- | ------------------- | ------------------------------- | ----- |
 | **`ssid`** | <code>string</code> | The SSID of the current network | 7.0.0 |
+
+
+#### WifiInfo
+
+Comprehensive WiFi information
+
+| Prop                 | Type                | Description                                                                         | Since |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------- | ----- |
+| **`ssid`**           | <code>string</code> | The SSID (network name) of the current network                                      | 7.0.0 |
+| **`bssid`**          | <code>string</code> | The BSSID (MAC address) of the access point. Not available on iOS.                  | 7.0.0 |
+| **`ip`**             | <code>string</code> | The device's IP address on the network                                              | 7.0.0 |
+| **`frequency`**      | <code>number</code> | The network frequency in MHz. Not available on iOS.                                 | 7.0.0 |
+| **`linkSpeed`**      | <code>number</code> | The connection speed in Mbps. Not available on iOS.                                 | 7.0.0 |
+| **`signalStrength`** | <code>number</code> | The signal strength (0-100). Calculated from RSSI on Android. Not available on iOS. | 7.0.0 |
 
 
 #### IsEnabledResult
