@@ -44,7 +44,7 @@ import java.util.List;
 )
 public class CapacitorWifiPlugin extends Plugin {
 
-    private final String pluginVersion = "8.1.3";
+    private final String pluginVersion = "8.1.4";
 
     private WifiManager wifiManager;
     private ConnectivityManager connectivityManager;
