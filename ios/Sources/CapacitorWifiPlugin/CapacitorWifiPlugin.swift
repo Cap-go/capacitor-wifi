@@ -1,7 +1,6 @@
 import Foundation
 import Capacitor
 import NetworkExtension
-import SystemConfiguration.CaptiveNetwork
 import CoreLocation
 
 @objc(CapacitorWifiPlugin)
@@ -88,14 +87,16 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
 
         if let ssid = ssid {
             hotspotManager?.removeConfiguration(forSSID: ssid)
+            call.resolve()
         } else {
-            // Disconnect from current network by getting current SSID
-            if let currentSSID = getCurrentSSID() {
-                hotspotManager?.removeConfiguration(forSSID: currentSSID)
+            // Disconnect from current network by fetching current SSID asynchronously
+            Task {
+                if let currentSSID = await fetchCurrentNetwork()?.ssid {
+                    self.hotspotManager?.removeConfiguration(forSSID: currentSSID)
+                }
+                call.resolve()
             }
         }
-
-        call.resolve()
     }
 
     @objc func getAvailableNetworks(_ call: CAPPluginCall) {
@@ -142,33 +143,40 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getSsid(_ call: CAPPluginCall) {
-        if let ssid = getCurrentSSID() {
-            call.resolve(["ssid": ssid])
-        } else {
-            call.reject("Failed to get SSID")
+        Task {
+            if let ssid = await fetchCurrentNetwork()?.ssid {
+                call.resolve(["ssid": ssid])
+            } else {
+                call.reject("Failed to get SSID")
+            }
         }
     }
 
     @objc func getWifiInfo(_ call: CAPPluginCall) {
-        guard let ssid = getCurrentSSID() else {
-            call.reject("Failed to get SSID")
-            return
+        Task {
+            guard let network = await fetchCurrentNetwork() else {
+                call.reject("Failed to get SSID")
+                return
+            }
+
+            var result: [String: Any] = [
+                "ssid": network.ssid,
+                "bssid": network.bssid
+            ]
+
+            // Get IP Address
+            if let ipAddress = self.getIPAddress() {
+                result["ip"] = ipAddress
+            } else {
+                call.reject("Failed to get IP address")
+                return
+            }
+
+            // Note: frequency, linkSpeed, and signalStrength are not available on iOS
+            // through public APIs, so we only return ssid, bssid, and ip
+
+            call.resolve(result)
         }
-
-        var result: [String: Any] = ["ssid": ssid]
-
-        // Get IP Address
-        if let ipAddress = getIPAddress() {
-            result["ip"] = ipAddress
-        } else {
-            call.reject("Failed to get IP address")
-            return
-        }
-
-        // Note: BSSID, frequency, linkSpeed, and signalStrength are not available on iOS
-        // through public APIs, so we only return ssid and ip
-
-        call.resolve(result)
     }
 
     @objc func isEnabled(_ call: CAPPluginCall) {
@@ -197,12 +205,15 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - Helper Methods
 
-    private func getCurrentSSID() -> String? {
-        var currentSSID: String?
-        NEHotspotNetwork.fetchCurrent { network in
-            currentSSID = network?.ssid
+    /// Fetches the current Wi-Fi network asynchronously.
+    /// NEHotspotNetwork.fetchCurrent uses a completion handler (async), so we bridge it
+    /// with withCheckedContinuation to avoid returning nil before the callback fires.
+    private func fetchCurrentNetwork() async -> NEHotspotNetwork? {
+        await withCheckedContinuation { continuation in
+            NEHotspotNetwork.fetchCurrent { network in
+                continuation.resume(returning: network)
+            }
         }
-        return currentSSID
     }
 
     private func getIPAddress() -> String? {
@@ -236,7 +247,8 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func getLocationPermissionStatus() -> String {
-        switch CLLocationManager.authorizationStatus() {
+        let manager = CLLocationManager()
+        switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             return "granted"
         case .denied, .restricted:
