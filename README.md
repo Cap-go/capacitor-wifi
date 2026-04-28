@@ -328,8 +328,8 @@ isNetworkSaved(options: IsNetworkSavedOptions) => Promise<IsNetworkSavedResult>
 ```
 
 Check whether a network with the given SSID has already been saved/configured by this app.
-On Android SDK 29+, this checks the app's Wi-Fi network suggestions.
-On older Android, this checks the system's configured networks list.
+On Android SDK 30+, this checks the app's Wi-Fi network suggestions.
+On older Android (including SDK 29), this checks the system's configured networks list.
 On iOS, this checks the hotspot configurations managed by this app.
 Use this to decide whether to call addNetwork() (first time) or connect() (already saved).
 

@@ -651,9 +651,11 @@ public class CapacitorWifiPlugin extends Plugin {
 
         try {
             boolean isSaved;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 isSaved = isNetworkSavedModern(ssid);
             } else {
+                // API 29 (Q): getNetworkSuggestions() isn't available yet, fall back to the
+                // legacy WifiConfiguration-based lookup which works on API 28 and API 29.
                 isSaved = isNetworkSavedLegacy(ssid);
             }
             JSObject ret = new JSObject();
@@ -664,7 +666,7 @@ public class CapacitorWifiPlugin extends Plugin {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.Q)
+    @RequiresApi(api = Build.VERSION_CODES.R)
     private boolean isNetworkSavedModern(String ssid) {
         List<WifiNetworkSuggestion> suggestions = wifiManager.getNetworkSuggestions();
         for (WifiNetworkSuggestion suggestion : suggestions) {
