@@ -10,6 +10,8 @@ import type {
   GetRssiResult,
   GetSsidResult,
   IsEnabledResult,
+  IsNetworkSavedOptions,
+  IsNetworkSavedResult,
   PermissionStatus,
   RequestPermissionsOptions,
   WifiInfo,
@@ -61,6 +63,10 @@ export class CapacitorWifiWeb extends WebPlugin implements CapacitorWifiPlugin {
   }
 
   async requestPermissions(_options?: RequestPermissionsOptions): Promise<PermissionStatus> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async isNetworkSaved(_options: IsNetworkSavedOptions): Promise<IsNetworkSavedResult> {
     throw this.unimplemented('Not implemented on web.');
   }
 

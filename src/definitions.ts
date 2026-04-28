@@ -247,6 +247,29 @@ export interface CapacitorWifiPlugin {
   removeAllListeners(): Promise<void>;
 
   /**
+   * Check whether a network with the given SSID has already been saved/configured by this app.
+   * On Android SDK 29+, this checks the app's Wi-Fi network suggestions.
+   * On older Android, this checks the system's configured networks list.
+   * On iOS, this checks the hotspot configurations managed by this app.
+   * Use this to decide whether to call addNetwork() (first time) or connect() (already saved).
+   *
+   * @param options - Options containing the SSID to check
+   * @returns Promise that resolves with whether the network is saved
+   * @throws Error if the check fails
+   * @since 8.2.0
+   * @example
+   * ```typescript
+   * const { isSaved } = await CapacitorWifi.isNetworkSaved({ ssid: 'MyNetwork' });
+   * if (isSaved) {
+   *   await CapacitorWifi.connect({ ssid: 'MyNetwork', password: 'mypassword' });
+   * } else {
+   *   await CapacitorWifi.addNetwork({ ssid: 'MyNetwork', password: 'mypassword' });
+   * }
+   * ```
+   */
+  isNetworkSaved(options: IsNetworkSavedOptions): Promise<IsNetworkSavedResult>;
+
+  /**
    * Get the native plugin version.
    *
    * @returns Promise that resolves with the plugin version
@@ -620,4 +643,32 @@ export enum NetworkSecurityType {
    * @since 7.0.0
    */
   WAPI_CERT = 10,
+}
+
+/**
+ * Options for checking whether a network is saved
+ *
+ * @since 8.2.0
+ */
+export interface IsNetworkSavedOptions {
+  /**
+   * The SSID of the network to check
+   *
+   * @since 8.2.0
+   */
+  ssid: string;
+}
+
+/**
+ * Result from isNetworkSaved()
+ *
+ * @since 8.2.0
+ */
+export interface IsNetworkSavedResult {
+  /**
+   * Whether the network has already been saved/configured by this app
+   *
+   * @since 8.2.0
+   */
+  isSaved: boolean;
 }

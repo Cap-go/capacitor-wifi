@@ -642,6 +642,63 @@ public class CapacitorWifiPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void isNetworkSaved(PluginCall call) {
+        String ssid = call.getString("ssid");
+        if (ssid == null || ssid.isEmpty()) {
+            call.reject("SSID is required");
+            return;
+        }
+
+        try {
+            boolean isSaved;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                isSaved = isNetworkSavedModern(ssid);
+            } else {
+                isSaved = isNetworkSavedLegacy(ssid);
+            }
+            JSObject ret = new JSObject();
+            ret.put("isSaved", isSaved);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to check network saved status: " + e.getMessage(), e);
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.Q)
+    private boolean isNetworkSavedModern(String ssid) {
+        List<WifiNetworkSuggestion> suggestions = wifiManager.getNetworkSuggestions();
+        for (WifiNetworkSuggestion suggestion : suggestions) {
+            // getSsid() returns the raw (unquoted) SSID; strip quotes defensively in case the
+            // platform ever returns a quoted value.
+            String suggestionSsid = suggestion.getSsid();
+            if (suggestionSsid != null) {
+                suggestionSsid = suggestionSsid.replace("\"", "");
+            }
+            if (ssid.equals(suggestionSsid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean isNetworkSavedLegacy(String ssid) {
+        List<WifiConfiguration> configs = wifiManager.getConfiguredNetworks();
+        if (configs == null) {
+            // getConfiguredNetworks() can return null when the caller lacks ACCESS_WIFI_STATE
+            // permission or Wi-Fi is disabled; treat this as an indeterminate state.
+            throw new IllegalStateException("Unable to retrieve configured networks; check permissions and Wi-Fi state");
+        }
+        String quotedSsid = "\"" + ssid + "\"";
+        for (WifiConfiguration config : configs) {
+            if (quotedSsid.equals(config.SSID)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @PluginMethod
     public void getPluginVersion(final PluginCall call) {
         try {
             final JSObject ret = new JSObject();

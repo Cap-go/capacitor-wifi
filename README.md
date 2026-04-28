@@ -65,6 +65,7 @@ npx cap sync
 * [`requestPermissions(...)`](#requestpermissions)
 * [`addListener('networksScanned', ...)`](#addlistenernetworksscanned-)
 * [`removeAllListeners()`](#removealllisteners)
+* [`isNetworkSaved(...)`](#isnetworksaved)
 * [`getPluginVersion()`](#getpluginversion)
 * [Interfaces](#interfaces)
 * [Type Aliases](#type-aliases)
@@ -320,6 +321,29 @@ Remove all listeners for this plugin.
 --------------------
 
 
+### isNetworkSaved(...)
+
+```typescript
+isNetworkSaved(options: IsNetworkSavedOptions) => Promise<IsNetworkSavedResult>
+```
+
+Check whether a network with the given SSID has already been saved/configured by this app.
+On Android SDK 29+, this checks the app's Wi-Fi network suggestions.
+On older Android, this checks the system's configured networks list.
+On iOS, this checks the hotspot configurations managed by this app.
+Use this to decide whether to call addNetwork() (first time) or connect() (already saved).
+
+| Param         | Type                                                                    | Description                            |
+| ------------- | ----------------------------------------------------------------------- | -------------------------------------- |
+| **`options`** | <code><a href="#isnetworksavedoptions">IsNetworkSavedOptions</a></code> | - Options containing the SSID to check |
+
+**Returns:** <code>Promise&lt;<a href="#isnetworksavedresult">IsNetworkSavedResult</a>&gt;</code>
+
+**Since:** 8.2.0
+
+--------------------
+
+
 ### getPluginVersion()
 
 ```typescript
@@ -464,6 +488,24 @@ Options for requesting permissions
 | Prop         | Type                                      |
 | ------------ | ----------------------------------------- |
 | **`remove`** | <code>() =&gt; Promise&lt;void&gt;</code> |
+
+
+#### IsNetworkSavedResult
+
+Result from isNetworkSaved()
+
+| Prop          | Type                 | Description                                                       | Since |
+| ------------- | -------------------- | ----------------------------------------------------------------- | ----- |
+| **`isSaved`** | <code>boolean</code> | Whether the network has already been saved/configured by this app | 8.2.0 |
+
+
+#### IsNetworkSavedOptions
+
+Options for checking whether a network is saved
+
+| Prop       | Type                | Description                      | Since |
+| ---------- | ------------------- | -------------------------------- | ----- |
+| **`ssid`** | <code>string</code> | The SSID of the network to check | 8.2.0 |
 
 
 ### Type Aliases
