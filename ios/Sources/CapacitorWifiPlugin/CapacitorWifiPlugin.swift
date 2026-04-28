@@ -21,6 +21,7 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "startScan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "checkPermissions", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestPermissions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isNetworkSaved", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPluginVersion", returnType: CAPPluginReturnPromise)
     ]
 
@@ -197,6 +198,22 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
         // For iOS 13+, location permission is required to access SSID
         let status = getLocationPermissionStatus()
         call.resolve(["location": status])
+    }
+
+    @objc func isNetworkSaved(_ call: CAPPluginCall) {
+        guard let ssid = call.getString("ssid") else {
+            call.reject("SSID is required")
+            return
+        }
+
+        guard let manager = hotspotManager else {
+            call.reject("Hotspot configuration manager is unavailable")
+            return
+        }
+
+        manager.getConfiguredSSIDs { ssids in
+            call.resolve(["isSaved": ssids.contains(ssid)])
+        }
     }
 
     @objc func getPluginVersion(_ call: CAPPluginCall) {
