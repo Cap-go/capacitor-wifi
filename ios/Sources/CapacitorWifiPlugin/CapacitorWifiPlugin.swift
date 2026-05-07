@@ -4,7 +4,7 @@ import NetworkExtension
 import CoreLocation
 
 @objc(CapacitorWifiPlugin)
-public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
+public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelegate {
     private let pluginVersion: String = "8.2.0"
     public let identifier = "CapacitorWifiPlugin"
     public let jsName = "CapacitorWifi"
@@ -26,9 +26,13 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private var hotspotManager: NEHotspotConfigurationManager?
+    private var locationManager: CLLocationManager?
+    private var permissionCalls: [CAPPluginCall] = []
 
     override public func load() {
         hotspotManager = NEHotspotConfigurationManager.shared
+        locationManager = CLLocationManager()
+        locationManager?.delegate = self
     }
 
     @objc func addNetwork(_ call: CAPPluginCall) {
@@ -194,10 +198,20 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc override public func requestPermissions(_ call: CAPPluginCall) {
-        // On iOS, location permission is automatically requested when accessing WiFi info
-        // For iOS 13+, location permission is required to access SSID
-        let status = getLocationPermissionStatus()
-        call.resolve(["location": status])
+        DispatchQueue.main.async {
+            let status = self.getLocationPermissionStatus()
+            if status != "prompt" {
+                call.resolve(["location": status])
+                return
+            }
+
+            self.permissionCalls.append(call)
+            if self.permissionCalls.count > 1 {
+                return
+            }
+
+            self.locationManager?.requestWhenInUseAuthorization()
+        }
     }
 
     @objc func isNetworkSaved(_ call: CAPPluginCall) {
@@ -274,6 +288,38 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin {
             return "prompt"
         @unknown default:
             return "prompt"
+        }
+    }
+
+    public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        resolvePermissionCallIfNeeded()
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        resolvePermissionCallIfNeeded()
+    }
+
+    private func resolvePermissionCallIfNeeded() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                self.resolvePermissionCallIfNeeded()
+            }
+            return
+        }
+
+        if permissionCalls.isEmpty {
+            return
+        }
+
+        let status = getLocationPermissionStatus()
+        if status == "prompt" {
+            return
+        }
+
+        let pendingCalls = permissionCalls
+        permissionCalls.removeAll()
+        for pendingCall in pendingCalls {
+            pendingCall.resolve(["location": status])
         }
     }
 }
