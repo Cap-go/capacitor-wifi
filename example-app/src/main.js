@@ -1,3 +1,5 @@
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
+import { Capacitor } from '@capacitor/core';
 
 import './style.css';
 import { CapacitorWifi } from '@capgo/capacitor-wifi';
@@ -316,3 +318,9 @@ navButtons.forEach(button => {
     document.getElementById(`${targetPage}-page`).classList.add('active');
   });
 });
+
+if (Capacitor.isNativePlatform()) {
+  CapacitorUpdater.notifyAppReady().catch((error) => {
+    console.error('Capgo notifyAppReady failed', error);
+  });
+}
