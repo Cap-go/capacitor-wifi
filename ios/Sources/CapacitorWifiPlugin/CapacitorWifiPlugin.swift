@@ -118,9 +118,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
-        // Priority: IPv4 > routable IPv6 (ULA/global) > link-local IPv6 (fe80::).
-        // getifaddrs on iOS lists the fe80:: link-local entry before the DHCP-assigned
-        // IPv4 address, so we must scan the full list rather than stopping on the first hit.
         var ipv4Address: String?
         var routableIPv6Address: String?
         var linkLocalIPv6Address: String?
@@ -140,14 +137,11 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
             let resolved = String(cString: hostname)
 
             if addrFamily == UInt8(AF_INET) {
-                // IPv4 — best possible result, stop scanning immediately.
                 ipv4Address = resolved
                 break
             } else if resolved.hasPrefix("fe80") {
-                // Link-local IPv6 — last resort, always present even before DHCP completes.
                 if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
             } else {
-                // Routable IPv6 (ULA fd::/8 or global 2xxx::/4) — good fallback.
                 if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
@@ -272,9 +266,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
-        // Priority: IPv4 > routable IPv6 (ULA/global) > link-local IPv6 (fe80::).
-        // getifaddrs on iOS lists the fe80:: link-local entry before the DHCP-assigned
-        // IPv4 address, so we must scan the full list rather than stopping on the first hit.
         var ipv4Address: String?
         var routableIPv6Address: String?
         var linkLocalIPv6Address: String?
@@ -294,14 +285,11 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
             let resolved = String(cString: hostname)
 
             if addrFamily == UInt8(AF_INET) {
-                // IPv4 — best possible result, stop scanning immediately.
                 ipv4Address = resolved
                 break
             } else if resolved.hasPrefix("fe80") {
-                // Link-local IPv6 — last resort, always present even before DHCP completes.
                 if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
             } else {
-                // Routable IPv6 (ULA fd::/8 or global 2xxx::/4) — good fallback.
                 if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
