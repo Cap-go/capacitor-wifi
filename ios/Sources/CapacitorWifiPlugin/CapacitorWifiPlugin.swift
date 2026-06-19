@@ -109,7 +109,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
 
     @objc func getIpAddress(_ call: CAPPluginCall) {
-        var address: String?
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
 
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
@@ -119,24 +118,35 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
+        var ipv4Address: String?
+        var routableIPv6Address: String?
+        var linkLocalIPv6Address: String?
+
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
+            let name = String(cString: interface.ifa_name)
 
-            if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
-                let name = String(cString: interface.ifa_name)
-                if name == "en0" {
-                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                                &hostname, socklen_t(hostname.count),
-                                nil, socklen_t(0), NI_NUMERICHOST)
-                    address = String(cString: hostname)
-                    break
-                }
+            guard name == "en0",
+                  addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) else { continue }
+
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                        &hostname, socklen_t(hostname.count),
+                        nil, socklen_t(0), NI_NUMERICHOST)
+            let resolved = String(cString: hostname)
+
+            if addrFamily == UInt8(AF_INET) {
+                ipv4Address = resolved
+                break
+            } else if resolved.hasPrefix("fe80") {
+                if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
+            } else {
+                if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
 
-        if let address = address {
+        if let address = ipv4Address ?? routableIPv6Address ?? linkLocalIPv6Address {
             call.resolve(["ipAddress": address])
         } else {
             call.reject("No IP address found")
@@ -248,7 +258,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
 
     private func getIPAddress() -> String? {
-        var address: String?
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
 
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
@@ -257,24 +266,35 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
+        var ipv4Address: String?
+        var routableIPv6Address: String?
+        var linkLocalIPv6Address: String?
+
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
+            let name = String(cString: interface.ifa_name)
 
-            if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
-                let name = String(cString: interface.ifa_name)
-                if name == "en0" {
-                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                                &hostname, socklen_t(hostname.count),
-                                nil, socklen_t(0), NI_NUMERICHOST)
-                    address = String(cString: hostname)
-                    break
-                }
+            guard name == "en0",
+                  addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) else { continue }
+
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                        &hostname, socklen_t(hostname.count),
+                        nil, socklen_t(0), NI_NUMERICHOST)
+            let resolved = String(cString: hostname)
+
+            if addrFamily == UInt8(AF_INET) {
+                ipv4Address = resolved
+                break
+            } else if resolved.hasPrefix("fe80") {
+                if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
+            } else {
+                if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
 
-        return address
+        return ipv4Address ?? routableIPv6Address ?? linkLocalIPv6Address
     }
 
     private func getLocationPermissionStatus() -> String {
