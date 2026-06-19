@@ -109,7 +109,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
 
     @objc func getIpAddress(_ call: CAPPluginCall) {
-        var address: String?
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
 
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
@@ -119,32 +118,41 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
+        // Priority: IPv4 > routable IPv6 (ULA/global) > link-local IPv6 (fe80::).
+        // getifaddrs on iOS lists the fe80:: link-local entry before the DHCP-assigned
+        // IPv4 address, so we must scan the full list rather than stopping on the first hit.
+        var ipv4Address: String?
+        var routableIPv6Address: String?
+        var linkLocalIPv6Address: String?
+
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
             let name = String(cString: interface.ifa_name)
 
-            guard name == "en0" else { continue }
+            guard name == "en0",
+                  addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) else { continue }
+
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                        &hostname, socklen_t(hostname.count),
+                        nil, socklen_t(0), NI_NUMERICHOST)
+            let resolved = String(cString: hostname)
 
             if addrFamily == UInt8(AF_INET) {
-                // IPv4 found — this is the preferred result, stop scanning.
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                            &hostname, socklen_t(hostname.count),
-                            nil, socklen_t(0), NI_NUMERICHOST)
-                address = String(cString: hostname)
+                // IPv4 — best possible result, stop scanning immediately.
+                ipv4Address = resolved
                 break
-            } else if addrFamily == UInt8(AF_INET6) && address == nil {
-                // IPv6 found — keep it as a fallback but continue scanning for IPv4.
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                            &hostname, socklen_t(hostname.count),
-                            nil, socklen_t(0), NI_NUMERICHOST)
-                address = String(cString: hostname)
+            } else if resolved.hasPrefix("fe80") {
+                // Link-local IPv6 — last resort, always present even before DHCP completes.
+                if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
+            } else {
+                // Routable IPv6 (ULA fd::/8 or global 2xxx::/4) — good fallback.
+                if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
 
-        if let address = address {
+        if let address = ipv4Address ?? routableIPv6Address ?? linkLocalIPv6Address {
             call.resolve(["ipAddress": address])
         } else {
             call.reject("No IP address found")
@@ -256,7 +264,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
 
     private func getIPAddress() -> String? {
-        var address: String?
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
 
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
@@ -265,32 +272,41 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
         defer { freeifaddrs(ifaddr) }
 
+        // Priority: IPv4 > routable IPv6 (ULA/global) > link-local IPv6 (fe80::).
+        // getifaddrs on iOS lists the fe80:: link-local entry before the DHCP-assigned
+        // IPv4 address, so we must scan the full list rather than stopping on the first hit.
+        var ipv4Address: String?
+        var routableIPv6Address: String?
+        var linkLocalIPv6Address: String?
+
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let interface = ptr.pointee
             let addrFamily = interface.ifa_addr.pointee.sa_family
             let name = String(cString: interface.ifa_name)
 
-            guard name == "en0" else { continue }
+            guard name == "en0",
+                  addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) else { continue }
+
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                        &hostname, socklen_t(hostname.count),
+                        nil, socklen_t(0), NI_NUMERICHOST)
+            let resolved = String(cString: hostname)
 
             if addrFamily == UInt8(AF_INET) {
-                // IPv4 found — this is the preferred result, stop scanning.
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                            &hostname, socklen_t(hostname.count),
-                            nil, socklen_t(0), NI_NUMERICHOST)
-                address = String(cString: hostname)
+                // IPv4 — best possible result, stop scanning immediately.
+                ipv4Address = resolved
                 break
-            } else if addrFamily == UInt8(AF_INET6) && address == nil {
-                // IPv6 found — keep it as a fallback but continue scanning for IPv4.
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-                            &hostname, socklen_t(hostname.count),
-                            nil, socklen_t(0), NI_NUMERICHOST)
-                address = String(cString: hostname)
+            } else if resolved.hasPrefix("fe80") {
+                // Link-local IPv6 — last resort, always present even before DHCP completes.
+                if linkLocalIPv6Address == nil { linkLocalIPv6Address = resolved }
+            } else {
+                // Routable IPv6 (ULA fd::/8 or global 2xxx::/4) — good fallback.
+                if routableIPv6Address == nil { routableIPv6Address = resolved }
             }
         }
 
-        return address
+        return ipv4Address ?? routableIPv6Address ?? linkLocalIPv6Address
     }
 
     private func getLocationPermissionStatus() -> String {
