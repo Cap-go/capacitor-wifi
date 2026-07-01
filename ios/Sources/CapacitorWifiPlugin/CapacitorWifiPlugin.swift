@@ -5,7 +5,7 @@ import CoreLocation
 
 @objc(CapacitorWifiPlugin)
 public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelegate {
-    private let pluginVersion: String = "8.3.6"
+    private let pluginVersion: String = "8.4.0"
     public let identifier = "CapacitorWifiPlugin"
     public let jsName = "CapacitorWifi"
     public let pluginMethods: [CAPPluginMethod] = [
