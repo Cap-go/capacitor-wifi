@@ -155,6 +155,48 @@ const actions = [
     },
   },
   {
+    id: 'share-network',
+    label: 'Share network credentials',
+    description:
+      'Shares Wi-Fi credentials using platform-native flows. Android uses Wi-Fi Easy Connect (DPP). iOS 26.2+ uses Wi-Fi Infrastructure with a paired AccessorySetupKit accessory.',
+    inputs: [
+      { name: 'dppUri', label: 'DPP URI (Android)', type: 'text', value: '' },
+      { name: 'ssid', label: 'SSID (Android QR)', type: 'text', value: '' },
+      { name: 'password', label: 'Password (Android QR)', type: 'text', value: '' },
+      {
+        name: 'bluetoothIdentifier',
+        label: 'Bluetooth identifier (iOS)',
+        type: 'text',
+        value: '',
+      },
+      {
+        name: 'accessoryIdentifier',
+        label: 'Accessory identifier (iOS)',
+        type: 'text',
+        value: '',
+      },
+      {
+        name: 'requestAuthorization',
+        label: 'Request authorization (iOS)',
+        type: 'checkbox',
+        value: false,
+      },
+      { name: 'askToShare', label: 'Ask to share (iOS)', type: 'checkbox', value: true },
+    ],
+    run: async (values) => {
+      const options = {};
+      if (values.dppUri) options.dppUri = values.dppUri;
+      if (values.ssid) options.ssid = values.ssid;
+      if (values.password) options.password = values.password;
+      if (values.bluetoothIdentifier) options.bluetoothIdentifier = values.bluetoothIdentifier;
+      if (values.accessoryIdentifier) options.accessoryIdentifier = values.accessoryIdentifier;
+      if (values.requestAuthorization) options.requestAuthorization = true;
+      if (!values.askToShare) options.askToShare = false;
+      const result = await plugin.shareNetwork(Object.keys(options).length ? options : undefined);
+      return result;
+    },
+  },
+  {
     id: 'disconnect',
     label: 'Disconnect from network',
     description:

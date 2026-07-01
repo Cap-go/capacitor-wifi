@@ -22,6 +22,7 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         CAPPluginMethod(name: "checkPermissions", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestPermissions", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isNetworkSaved", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "shareNetwork", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPluginVersion", returnType: CAPPluginReturnPromise)
     ]
 
@@ -238,6 +239,45 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         manager.getConfiguredSSIDs { ssids in
             call.resolve(["isSaved": ssids.contains(ssid)])
         }
+    }
+
+    @objc func shareNetwork(_ call: CAPPluginCall) {
+        if #available(iOS 26.2, *) {
+            #if canImport(AccessorySetupKit) && canImport(WiFiInfrastructure)
+            let bluetoothIdentifier = call.getString("bluetoothIdentifier")
+            let accessoryIdentifier = call.getString("accessoryIdentifier")
+            let requestAuthorization = call.getBool("requestAuthorization") ?? false
+            let askToShare = call.getBool("askToShare") ?? true
+
+            Task {
+                do {
+                    let response = try await WifiNetworkSharingHelper.shareNetwork(
+                        WifiNetworkSharingHelper.ShareRequest(
+                            bluetoothIdentifier: bluetoothIdentifier,
+                            accessoryIdentifier: accessoryIdentifier,
+                            requestAuthorization: requestAuthorization,
+                            askToShare: askToShare
+                        )
+                    )
+
+                    var result = JSObject()
+                    result["started"] = response.started
+                    if let authorizationState = response.authorizationState {
+                        result["authorizationState"] = authorizationState
+                    }
+                    if let askToShareState = response.askToShareState {
+                        result["askToShareState"] = askToShareState
+                    }
+                    call.resolve(result)
+                } catch {
+                    call.reject(error.localizedDescription, nil, error)
+                }
+            }
+            return
+            #endif
+        }
+
+        call.reject("Wi-Fi Infrastructure sharing requires iOS 26.2 or later.")
     }
 
     @objc func getPluginVersion(_ call: CAPPluginCall) {

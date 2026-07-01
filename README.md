@@ -80,6 +80,7 @@ npx cap sync
 * [`addListener('networksScanned', ...)`](#addlistenernetworksscanned-)
 * [`removeAllListeners()`](#removealllisteners)
 * [`isNetworkSaved(...)`](#isnetworksaved)
+* [`shareNetwork(...)`](#sharenetwork)
 * [`getPluginVersion()`](#getpluginversion)
 * [Interfaces](#interfaces)
 * [Type Aliases](#type-aliases)
@@ -358,6 +359,33 @@ Use this to decide whether to call addNetwork() (first time) or connect() (alrea
 --------------------
 
 
+### shareNetwork(...)
+
+```typescript
+shareNetwork(options?: ShareNetworkOptions | undefined) => Promise<ShareNetworkResult>
+```
+
+Share Wi-Fi network credentials using platform-native sharing flows.
+
+On Android 10+, this uses Wi-Fi Easy Connect (DPP). When `dppUri` is provided, the system
+provisions credentials to the target device. Otherwise, it opens the system UI to share the
+current or specified network (optionally via QR code when `ssid` and `password` are provided).
+
+On iOS 26.2+, this uses the Wi-Fi Infrastructure framework with a paired AccessorySetupKit
+accessory. The host app must pair the accessory first and pass its `bluetoothIdentifier` or
+`accessoryIdentifier`. The app also needs the `com.apple.developer.wifi-infrastructure` entitlement.
+
+| Param         | Type                                                                | Description       |
+| ------------- | ------------------------------------------------------------------- | ----------------- |
+| **`options`** | <code><a href="#sharenetworkoptions">ShareNetworkOptions</a></code> | - Sharing options |
+
+**Returns:** <code>Promise&lt;<a href="#sharenetworkresult">ShareNetworkResult</a>&gt;</code>
+
+**Since:** 8.4.0
+
+--------------------
+
+
 ### getPluginVersion()
 
 ```typescript
@@ -522,12 +550,52 @@ Options for checking whether a network is saved
 | **`ssid`** | <code>string</code> | The SSID of the network to check | 8.2.0 |
 
 
+#### ShareNetworkResult
+
+Result from shareNetwork()
+
+| Prop                     | Type                                                                                    | Description                                                            | Since |
+| ------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----- |
+| **`started`**            | <code>boolean</code>                                                                    | Whether the platform sharing flow was started or completed.            | 8.4.0 |
+| **`authorizationState`** | <code><a href="#wifisharingauthorizationstate">WifiSharingAuthorizationState</a></code> | iOS: Authorization state after `requestAuthorization`, when requested. | 8.4.0 |
+| **`askToShareState`**    | <code><a href="#wifisharingaskstate">WifiSharingAskState</a></code>                     | iOS: Result of `askToShare` when requested.                            | 8.4.0 |
+
+
+#### ShareNetworkOptions
+
+Options for sharing Wi-Fi network credentials
+
+| Prop                       | Type                 | Description                                                                                                                                                                                                   | Default            | Since |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
+| **`dppUri`**               | <code>string</code>  | Android: Wi-Fi Easy Connect (DPP) URI from the target device. When provided, launches the system UI to provision Wi-Fi credentials to that device.                                                            |                    | 8.4.0 |
+| **`ssid`**                 | <code>string</code>  | <a href="#network">Network</a> SSID to share via QR code on Android. When omitted, the system uses the currently connected network when possible.                                                             |                    | 8.4.0 |
+| **`password`**             | <code>string</code>  | <a href="#network">Network</a> password for QR code sharing on Android. Required when sharing a specific WPA/WPA2/WPA3 network via QR code. iOS does not allow reading saved Wi-Fi passwords from the system. |                    | 8.4.0 |
+| **`bluetoothIdentifier`**  | <code>string</code>  | iOS 26.2+: Bluetooth identifier of a paired AccessorySetupKit accessory. Required for Wi-Fi Infrastructure network sharing on iOS unless `accessoryIdentifier` is set.                                        |                    | 8.4.0 |
+| **`accessoryIdentifier`**  | <code>string</code>  | iOS 26.2+: Accessory UUID from AccessorySetupKit. Alternative lookup key when `bluetoothIdentifier` is unavailable.                                                                                           |                    | 8.4.0 |
+| **`requestAuthorization`** | <code>boolean</code> | iOS 26.2+: Request initial Wi-Fi network sharing authorization for the accessory.                                                                                                                             | <code>false</code> | 8.4.0 |
+| **`askToShare`**           | <code>boolean</code> | iOS 26.2+: Prompt the user to share the current Wi-Fi network with the accessory.                                                                                                                             | <code>true</code>  | 8.4.0 |
+
+
 ### Type Aliases
 
 
 #### PermissionState
 
 <code>'prompt' | 'prompt-with-rationale' | 'granted' | 'denied'</code>
+
+
+#### WifiSharingAuthorizationState
+
+Authorization state returned by iOS Wi-Fi Infrastructure sharing
+
+<code>'authorized' | 'denied' | 'notDetermined' | 'unsupported'</code>
+
+
+#### WifiSharingAskState
+
+Result state returned by iOS Wi-Fi Infrastructure askToShare()
+
+<code>'shared' | 'declined' | 'cancelled' | 'notNeeded' | 'unsupported'</code>
 
 
 ### Enums
