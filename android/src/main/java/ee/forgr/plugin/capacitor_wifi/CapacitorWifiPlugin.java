@@ -7,12 +7,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.NetworkSpecifier;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
@@ -58,13 +58,13 @@ public class CapacitorWifiPlugin extends Plugin {
     private ConnectivityManager.NetworkCallback networkCallback;
     private Network boundNetwork; // Store the network we bound to for unbinding
     private final Object boundNetworkLock = new Object();
-    private static final String ACTION_WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR =
-        "android.settings.WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR";
+    private static final String ACTION_WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR = "android.settings.WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR";
     private static final String EXTRA_WIFI_SECURITY = "wifi_security";
     private static final String EXTRA_WIFI_SSID = "wifi_ssid";
     private static final String EXTRA_WIFI_PRE_SHARED_KEY = "wifi_psk";
     private static final int WIFI_SECURITY_WPA_PSK = 2;
- // Lock for thread-safe access to boundNetwork
+
+    // Lock for thread-safe access to boundNetwork
 
     @Override
     public void load() {
@@ -762,7 +762,6 @@ public class CapacitorWifiPlugin extends Plugin {
         }
         return false;
     }
-
 
     @PluginMethod
     public void shareNetwork(PluginCall call) {

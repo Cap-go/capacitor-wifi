@@ -811,4 +811,3 @@ export interface ShareNetworkResult {
    */
   askToShareState?: WifiSharingAskState;
 }
-

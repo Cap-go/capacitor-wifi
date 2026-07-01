@@ -241,7 +241,6 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         }
     }
 
-
     @objc func shareNetwork(_ call: CAPPluginCall) {
         if #available(iOS 26.2, *) {
             #if canImport(AccessorySetupKit) && canImport(WiFiInfrastructure)
