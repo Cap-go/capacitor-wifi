@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -56,7 +57,14 @@ public class CapacitorWifiPlugin extends Plugin {
     private BroadcastReceiver scanResultsReceiver;
     private ConnectivityManager.NetworkCallback networkCallback;
     private Network boundNetwork; // Store the network we bound to for unbinding
-    private final Object boundNetworkLock = new Object(); // Lock for thread-safe access to boundNetwork
+    private final Object boundNetworkLock = new Object();
+    private static final String ACTION_WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR =
+        "android.settings.WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR";
+    private static final String EXTRA_WIFI_SECURITY = "wifi_security";
+    private static final String EXTRA_WIFI_SSID = "wifi_ssid";
+    private static final String EXTRA_WIFI_PRE_SHARED_KEY = "wifi_psk";
+    private static final int WIFI_SECURITY_WPA_PSK = 2;
+ // Lock for thread-safe access to boundNetwork
 
     @Override
     public void load() {
@@ -753,6 +761,75 @@ public class CapacitorWifiPlugin extends Plugin {
             }
         }
         return false;
+    }
+
+
+    @PluginMethod
+    public void shareNetwork(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.reject("Wi-Fi credential sharing requires Android 10 or later");
+            return;
+        }
+
+        if (!wifiManager.isEasyConnectSupported()) {
+            call.reject("Wi-Fi Easy Connect is not supported on this device");
+            return;
+        }
+
+        String dppUri = call.getString("dppUri");
+        if (dppUri != null && !dppUri.isEmpty()) {
+            shareNetworkViaDppUri(call, dppUri);
+            return;
+        }
+
+        shareNetworkViaQrGenerator(call);
+    }
+
+    private void shareNetworkViaDppUri(PluginCall call, String dppUri) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_PROCESS_WIFI_EASY_CONNECT_URI);
+            intent.setData(Uri.parse(dppUri));
+            startActivityForResult(call, intent, "handleShareNetworkResult");
+        } catch (Exception e) {
+            call.reject("Failed to start Wi-Fi Easy Connect flow: " + e.getMessage(), e);
+        }
+    }
+
+    private void shareNetworkViaQrGenerator(PluginCall call) {
+        try {
+            Intent intent = new Intent(ACTION_WIFI_DPP_CONFIGURATOR_QR_CODE_GENERATOR);
+
+            String ssid = call.getString("ssid");
+            String password = call.getString("password");
+
+            if (ssid != null && !ssid.isEmpty()) {
+                intent.putExtra(EXTRA_WIFI_SSID, ssid);
+                if (password != null && !password.isEmpty()) {
+                    intent.putExtra(EXTRA_WIFI_SECURITY, WIFI_SECURITY_WPA_PSK);
+                    intent.putExtra(EXTRA_WIFI_PRE_SHARED_KEY, password);
+                }
+            }
+
+            startActivityForResult(call, intent, "handleShareNetworkResult");
+        } catch (Exception e) {
+            call.reject("Failed to start Wi-Fi sharing UI: " + e.getMessage(), e);
+        }
+    }
+
+    @ActivityCallback
+    private void handleShareNetworkResult(@Nullable PluginCall call, ActivityResult result) {
+        if (call == null) {
+            return;
+        }
+
+        if (result.getResultCode() != RESULT_OK) {
+            call.reject("Wi-Fi sharing was canceled");
+            return;
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("started", true);
+        call.resolve(ret);
     }
 
     @PluginMethod

@@ -19,7 +19,11 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm")
             ],
-            path: "ios/Sources/CapacitorWifiPlugin"
+            path: "ios/Sources/CapacitorWifiPlugin",
+            linkerSettings: [
+                .linkedFramework("AccessorySetupKit", .when(platforms: [.iOS])),
+                .linkedFramework("WiFiInfrastructure", .when(platforms: [.iOS]))
+            ]
         ),
         .testTarget(
             name: "CapacitorWifiPluginTests",

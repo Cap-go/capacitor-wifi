@@ -14,6 +14,8 @@ import type {
   IsNetworkSavedResult,
   PermissionStatus,
   RequestPermissionsOptions,
+  ShareNetworkOptions,
+  ShareNetworkResult,
   WifiInfo,
 } from './definitions';
 
@@ -67,6 +69,10 @@ export class CapacitorWifiWeb extends WebPlugin implements CapacitorWifiPlugin {
   }
 
   async isNetworkSaved(_options: IsNetworkSavedOptions): Promise<IsNetworkSavedResult> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  async shareNetwork(_options?: ShareNetworkOptions): Promise<ShareNetworkResult> {
     throw this.unimplemented('Not implemented on web.');
   }
 
