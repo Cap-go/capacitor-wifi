@@ -4,7 +4,7 @@ import pkg from './package.json';
 
 const config: CapacitorConfig = {
   appId: 'app.capgo.wifi',
-  appName: 'WiFi Example',
+  appName: '@capgo/capacitor-wifi',
   webDir: 'dist',
   plugins: {
     SplashScreen: {
