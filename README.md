@@ -124,6 +124,12 @@ Set autoRouteTraffic to true to bind app traffic to the connected network (usefu
 For a persistent connection on Android, use addNetwork() instead.
 On iOS, this creates a persistent connection.
 
+Resolves only after the device is confirmed associated with the requested SSID.
+On failure, rejects with a Capacitor error that includes a stable `code`
+from {@link WifiConnectionErrorCode}. Prefer `error.code` over parsing `error.message`.
+Specific codes are returned only when the native OS provides that reason;
+otherwise the plugin returns `CONNECTION_FAILED`.
+
 | Param         | Type                                                      | Description          |
 | ------------- | --------------------------------------------------------- | -------------------- |
 | **`options`** | <code><a href="#connectoptions">ConnectOptions</a></code> | - Connection options |
@@ -426,6 +432,7 @@ Options for connecting to a network
 | **`password`**         | <code>string</code>  | The password for the network (optional for open networks)                                                                                                                                                                                                                                                                           |                    | 7.0.0 |
 | **`isHiddenSsid`**     | <code>boolean</code> | Whether the network is hidden (Android only)                                                                                                                                                                                                                                                                                        | <code>false</code> | 7.0.0 |
 | **`autoRouteTraffic`** | <code>boolean</code> | Whether to automatically route app traffic through the connected Wi-Fi network (Android only) When enabled, it binds the app process to the connected network using ConnectivityManager.bindProcessToNetwork() This is useful for connecting to local/device-hosted APs (e.g., ESP32, IoT devices) that don't have internet access. | <code>false</code> | 7.0.0 |
+| **`timeoutMs`**        | <code>number</code>  | Maximum time in milliseconds to wait for confirmation that the device is associated with the requested SSID before rejecting with `CONNECTION_TIMEOUT`. Must be a positive number when provided.                                                                                                                                    | <code>30000</code> | 8.5.0 |
 
 
 #### DisconnectOptions

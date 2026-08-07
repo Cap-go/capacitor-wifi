@@ -34,17 +34,38 @@ export interface CapacitorWifiPlugin {
    * For a persistent connection on Android, use addNetwork() instead.
    * On iOS, this creates a persistent connection.
    *
+   * Resolves only after the device is confirmed associated with the requested SSID.
+   * On failure, rejects with a Capacitor error that includes a stable `code`
+   * from {@link WifiConnectionErrorCode}. Prefer `error.code` over parsing `error.message`.
+   * Specific codes are returned only when the native OS provides that reason;
+   * otherwise the plugin returns `CONNECTION_FAILED`.
+   *
    * @param options - Connection options
    * @returns Promise that resolves when connected
-   * @throws Error if connection fails
+   * @throws CapacitorException with `code` from {@link WifiConnectionErrorCode}
    * @since 7.0.0
    * @example
    * ```typescript
-   * await CapacitorWifi.connect({
-   *   ssid: 'MyNetwork',
-   *   password: 'mypassword',
-   *   autoRouteTraffic: true // Android only: route app traffic through this network
-   * });
+   * try {
+   *   await CapacitorWifi.connect({
+   *     ssid: 'MyNetwork',
+   *     password: 'mypassword',
+   *     autoRouteTraffic: true, // Android only
+   *     timeoutMs: 30000,
+   *   });
+   * } catch (error: any) {
+   *   switch (error.code) {
+   *     case WifiConnectionErrorCode.WIFI_DISABLED:
+   *       // Ask the user to enable Wi-Fi
+   *       break;
+   *     case WifiConnectionErrorCode.PERMISSION_DENIED:
+   *       // Request the required permission
+   *       break;
+   *     default:
+   *       // Generic connection error
+   *       break;
+   *   }
+   * }
    * ```
    */
   connect(options: ConnectOptions): Promise<void>;
@@ -391,6 +412,148 @@ export interface ConnectOptions {
    * @default false
    */
   autoRouteTraffic?: boolean;
+
+  /**
+   * Maximum time in milliseconds to wait for confirmation that the device is associated
+   * with the requested SSID before rejecting with `CONNECTION_TIMEOUT`.
+   * Must be a positive number when provided.
+   *
+   * @since 8.5.0
+   * @default 30000
+   */
+  timeoutMs?: number;
+}
+
+/**
+ * Stable error codes returned by {@link CapacitorWifiPlugin.connect} on failure.
+ * Specific codes are returned only when the native platform explicitly provides that reason.
+ * Otherwise the plugin returns {@link WifiConnectionErrorCode.CONNECTION_FAILED}.
+ *
+ * @since 8.5.0
+ */
+export enum WifiConnectionErrorCode {
+  /**
+   * The SSID, password format, security configuration, timeout, or native request parameters are invalid.
+   *
+   * @since 8.5.0
+   */
+  INVALID_CONFIGURATION = 'INVALID_CONFIGURATION',
+
+  /**
+   * A required permission or authorization is missing or was denied.
+   *
+   * @since 8.5.0
+   */
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+
+  /**
+   * Wi-Fi is disabled and the connection cannot be started.
+   *
+   * @since 8.5.0
+   */
+  WIFI_DISABLED = 'WIFI_DISABLED',
+
+  /**
+   * The native API explicitly reports that the user rejected the connection request.
+   * Available on iOS; on Android only when the OS reports user rejection (API 36+).
+   *
+   * @since 8.5.0
+   */
+  USER_DENIED = 'USER_DENIED',
+
+  /**
+   * The native API explicitly reports an authentication failure.
+   * Not reliably available on Android API 29–33.
+   *
+   * @since 8.5.0
+   */
+  AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED',
+
+  /**
+   * The native API explicitly reports that the requested access point was not found.
+   * Not reliably available on Android API 29–33.
+   *
+   * @since 8.5.0
+   */
+  NETWORK_NOT_FOUND = 'NETWORK_NOT_FOUND',
+
+  /**
+   * The plugin timeout expired before the requested network was confirmed as connected.
+   *
+   * @since 8.5.0
+   */
+  CONNECTION_TIMEOUT = 'CONNECTION_TIMEOUT',
+
+  /**
+   * The connection failed, but the platform did not provide a reliable detailed reason.
+   *
+   * @since 8.5.0
+   */
+  CONNECTION_FAILED = 'CONNECTION_FAILED',
+
+  /**
+   * Another Wi-Fi connection attempt is already active.
+   *
+   * @since 8.5.0
+   */
+  CONNECTION_IN_PROGRESS = 'CONNECTION_IN_PROGRESS',
+
+  /**
+   * An unexpected plugin or native error occurred.
+   *
+   * @since 8.5.0
+   */
+  UNKNOWN = 'UNKNOWN',
+}
+
+/**
+ * Optional platform-specific diagnostics attached to a rejected `connect()` call.
+ * Applications should depend only on the stable plugin `code`.
+ *
+ * @since 8.5.0
+ */
+export interface WifiConnectionErrorData {
+  /**
+   * Platform that produced the error
+   *
+   * @since 8.5.0
+   */
+  platform: 'android' | 'ios';
+
+  /**
+   * Native error or reason code when available
+   *
+   * @since 8.5.0
+   */
+  nativeCode?: number | string;
+
+  /**
+   * Native error message when available (may be localized; do not parse for logic)
+   *
+   * @since 8.5.0
+   */
+  nativeMessage?: string;
+
+  /**
+   * Android API level of the device
+   *
+   * @since 8.5.0
+   */
+  androidApiLevel?: number;
+
+  /**
+   * Stage of the connection flow where the failure occurred
+   *
+   * @since 8.5.0
+   */
+  connectionStage?:
+    | 'validation'
+    | 'permission'
+    | 'request'
+    | 'association'
+    | 'authentication'
+    | 'ipProvisioning'
+    | 'verification';
 }
 
 /**
