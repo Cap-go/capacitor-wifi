@@ -12,6 +12,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.NetworkSpecifier;
+import android.net.TransportInfo;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -20,6 +21,8 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.net.wifi.WifiNetworkSuggestion;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import androidx.activity.result.ActivityResult;
 import androidx.annotation.NonNull;
@@ -41,6 +44,9 @@ import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @CapacitorPlugin(
     name = "CapacitorWifi",
@@ -63,6 +69,19 @@ public class CapacitorWifiPlugin extends Plugin {
     private static final String EXTRA_WIFI_SSID = "wifi_ssid";
     private static final String EXTRA_WIFI_PRE_SHARED_KEY = "wifi_psk";
     private static final int WIFI_SECURITY_WPA_PSK = 2;
+    private static final int DEFAULT_CONNECT_TIMEOUT_MS = 30000;
+    private static final long SSID_VERIFY_POLL_MS = 500;
+
+    private final Object connectLock = new Object();
+    private final AtomicInteger connectGeneration = new AtomicInteger(0);
+    private final Handler connectHandler = new Handler(Looper.getMainLooper());
+    private PluginCall activeConnectCall;
+    private AtomicBoolean connectCompleted;
+    private Runnable connectTimeoutRunnable;
+    private Runnable ssidVerifyRunnable;
+    private WifiManager.LocalOnlyConnectionFailureListener localOnlyFailureListener;
+    private String pendingConnectSsid;
+    private Boolean pendingAutoRouteTraffic;
 
     // Lock for thread-safe access to boundNetwork
 
@@ -236,6 +255,23 @@ public class CapacitorWifiPlugin extends Plugin {
 
     @PluginMethod
     public void connect(PluginCall call) {
+        synchronized (connectLock) {
+            if (activeConnectCall != null && connectCompleted != null && !connectCompleted.get()) {
+                rejectConnect(
+                    call,
+                    "CONNECTION_IN_PROGRESS",
+                    "Another Wi-Fi connection attempt is already in progress.",
+                    "request",
+                    null,
+                    null
+                );
+                return;
+            }
+            // Reserve the slot early so permission prompts cannot overlap with another connect().
+            activeConnectCall = call;
+            connectCompleted = new AtomicBoolean(false);
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             connectModern(call);
         } else {
@@ -247,7 +283,18 @@ public class CapacitorWifiPlugin extends Plugin {
     private void connectModern(PluginCall call) {
         String ssid = call.getString("ssid");
         if (ssid == null || ssid.isEmpty()) {
-            call.reject("SSID is required");
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "SSID is required.", "validation");
+            return;
+        }
+
+        Integer timeoutMs = resolveTimeoutMs(call);
+        if (timeoutMs == null) {
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "timeoutMs must be a positive number.", "validation");
+            return;
+        }
+
+        if (!wifiManager.isWifiEnabled()) {
+            rejectConnectAndClear(call, "WIFI_DISABLED", "Wi-Fi is disabled.", "request");
             return;
         }
 
@@ -255,7 +302,24 @@ public class CapacitorWifiPlugin extends Plugin {
         Boolean isHiddenSsid = call.getBoolean("isHiddenSsid", false);
         Boolean autoRouteTraffic = call.getBoolean("autoRouteTraffic", false);
 
+        if (password != null && !password.isEmpty() && !isValidWpaPassphrase(password)) {
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "Invalid WPA passphrase format.", "validation");
+            return;
+        }
+
+        final int generation = beginConnectAttempt(call, ssid, autoRouteTraffic, timeoutMs);
+
         try {
+            // Drop any previous local-only callback so a new request can take over.
+            if (networkCallback != null) {
+                try {
+                    connectivityManager.unregisterNetworkCallback(networkCallback);
+                } catch (Exception ignored) {
+                    // already unregistered
+                }
+                networkCallback = null;
+            }
+
             WifiNetworkSpecifier.Builder specifierBuilder = new WifiNetworkSpecifier.Builder().setSsid(ssid);
 
             if (isHiddenSsid != null && isHiddenSsid) {
@@ -274,16 +338,25 @@ public class CapacitorWifiPlugin extends Plugin {
 
             // Only remove internet capability if autoRouteTraffic is false
             // If autoRouteTraffic is true, we want Android to consider this network valid for routing
-            if (autoRouteTraffic == null || !autoRouteTraffic) {
+            boolean localOnly = autoRouteTraffic == null || !autoRouteTraffic;
+            if (localOnly) {
                 requestBuilder.removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
             }
 
             NetworkRequest request = requestBuilder.build();
 
+            if (localOnly && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerLocalOnlyFailureListener(generation, specifier);
+            }
+
             networkCallback = new ConnectivityManager.NetworkCallback() {
                 @Override
                 public void onAvailable(@NonNull Network network) {
                     super.onAvailable(network);
+
+                    if (!isCurrentConnectAttempt(generation)) {
+                        return;
+                    }
 
                     // Bind process to network if autoRouteTraffic is enabled
                     if (autoRouteTraffic != null && autoRouteTraffic) {
@@ -306,19 +379,60 @@ public class CapacitorWifiPlugin extends Plugin {
                         }
                     }
 
-                    call.resolve();
+                    startSsidVerification(generation, network, ssid, true);
                 }
 
                 @Override
                 public void onUnavailable() {
                     super.onUnavailable();
-                    call.reject("Failed to connect to network");
+                    // onUnavailable has no reliable detailed reason.
+                    // On API 34+ local-only connects, prefer LocalOnlyConnectionFailureListener.
+                    if (localOnly && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        return;
+                    }
+                    completeConnectFailure(
+                        generation,
+                        "CONNECTION_FAILED",
+                        "Failed to connect to network.",
+                        "association",
+                        null,
+                        null,
+                        true
+                    );
                 }
             };
 
             connectivityManager.requestNetwork(request, networkCallback);
+        } catch (SecurityException e) {
+            completeConnectFailure(
+                generation,
+                "PERMISSION_DENIED",
+                "Missing permission to connect to Wi-Fi.",
+                "permission",
+                null,
+                e.getMessage(),
+                true
+            );
+        } catch (IllegalArgumentException e) {
+            completeConnectFailure(
+                generation,
+                "INVALID_CONFIGURATION",
+                "Invalid Wi-Fi connection configuration.",
+                "validation",
+                null,
+                e.getMessage(),
+                true
+            );
         } catch (Exception e) {
-            call.reject("Failed to connect: " + e.getMessage(), e);
+            completeConnectFailure(
+                generation,
+                "UNKNOWN",
+                "Unexpected error while connecting to Wi-Fi.",
+                "request",
+                null,
+                e.getMessage(),
+                true
+            );
         }
     }
 
@@ -330,13 +444,31 @@ public class CapacitorWifiPlugin extends Plugin {
 
         String ssid = call.getString("ssid");
         if (ssid == null || ssid.isEmpty()) {
-            call.reject("SSID is required");
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "SSID is required.", "validation");
+            return;
+        }
+
+        Integer timeoutMs = resolveTimeoutMs(call);
+        if (timeoutMs == null) {
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "timeoutMs must be a positive number.", "validation");
+            return;
+        }
+
+        if (!wifiManager.isWifiEnabled()) {
+            rejectConnectAndClear(call, "WIFI_DISABLED", "Wi-Fi is disabled.", "request");
             return;
         }
 
         String password = call.getString("password");
         Boolean isHiddenSsid = call.getBoolean("isHiddenSsid", false);
         Boolean autoRouteTraffic = call.getBoolean("autoRouteTraffic", false);
+
+        if (password != null && !password.isEmpty() && !isValidWpaPassphrase(password)) {
+            rejectConnectAndClear(call, "INVALID_CONFIGURATION", "Invalid WPA passphrase format.", "validation");
+            return;
+        }
+
+        final int generation = beginConnectAttempt(call, ssid, autoRouteTraffic, timeoutMs);
 
         try {
             WifiConfiguration wifiConfig = new WifiConfiguration();
@@ -354,66 +486,93 @@ public class CapacitorWifiPlugin extends Plugin {
 
             int netId = wifiManager.addNetwork(wifiConfig);
             if (netId == -1) {
-                call.reject("Failed to add network configuration");
+                completeConnectFailure(
+                    generation,
+                    "CONNECTION_FAILED",
+                    "Failed to add network configuration.",
+                    "request",
+                    null,
+                    null,
+                    true
+                );
                 return;
             }
 
             boolean disconnectResult = wifiManager.disconnect();
             if (!disconnectResult) {
-                call.reject("Failed to disconnect from current network");
+                completeConnectFailure(
+                    generation,
+                    "CONNECTION_FAILED",
+                    "Failed to disconnect from current network.",
+                    "request",
+                    null,
+                    null,
+                    true
+                );
                 return;
             }
 
             boolean enableResult = wifiManager.enableNetwork(netId, true);
             if (!enableResult) {
-                call.reject("Failed to enable network");
+                completeConnectFailure(generation, "CONNECTION_FAILED", "Failed to enable network.", "request", null, null, true);
                 return;
             }
 
             boolean reconnectResult = wifiManager.reconnect();
             if (!reconnectResult) {
-                call.reject("Failed to reconnect");
+                completeConnectFailure(generation, "CONNECTION_FAILED", "Failed to reconnect.", "request", null, null, true);
                 return;
             }
 
-            // Bind process to network if autoRouteTraffic is enabled
-            if (autoRouteTraffic != null && autoRouteTraffic) {
-                // Use handler to bind asynchronously after connection is established
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-                    () -> {
-                        try {
-                            synchronized (boundNetworkLock) {
-                                // Unbind from previous network if any
-                                if (boundNetwork != null) {
-                                    connectivityManager.bindProcessToNetwork(null);
-                                }
-
-                                Network activeNetwork = connectivityManager.getActiveNetwork();
-                                if (activeNetwork != null) {
-                                    boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
-                                    if (bound) {
-                                        boundNetwork = activeNetwork;
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            // Log error but don't fail the connection
-                            android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
-                        }
-                    },
-                    500
-                );
-            }
-
-            call.resolve();
+            // Do not resolve after reconnect(); wait until the connected SSID matches.
+            startSsidVerification(generation, null, ssid, false);
+        } catch (SecurityException e) {
+            completeConnectFailure(
+                generation,
+                "PERMISSION_DENIED",
+                "Missing permission to connect to Wi-Fi.",
+                "permission",
+                null,
+                e.getMessage(),
+                true
+            );
+        } catch (IllegalArgumentException e) {
+            completeConnectFailure(
+                generation,
+                "INVALID_CONFIGURATION",
+                "Invalid Wi-Fi connection configuration.",
+                "validation",
+                null,
+                e.getMessage(),
+                true
+            );
         } catch (Exception e) {
-            call.reject("Failed to connect: " + e.getMessage(), e);
+            completeConnectFailure(
+                generation,
+                "UNKNOWN",
+                "Unexpected error while connecting to Wi-Fi.",
+                "request",
+                null,
+                e.getMessage(),
+                true
+            );
         }
     }
 
     @PluginMethod
     public void disconnect(PluginCall call) {
         try {
+            int generation = connectGeneration.get();
+            completeConnectFailure(
+                generation,
+                "CONNECTION_FAILED",
+                "Connection canceled because disconnect() was called.",
+                "request",
+                null,
+                null,
+                false
+            );
+
             // Unbind from network if we were bound
             synchronized (boundNetworkLock) {
                 if (boundNetwork != null) {
@@ -431,6 +590,7 @@ public class CapacitorWifiPlugin extends Plugin {
             } else {
                 wifiManager.disconnect();
             }
+            removeLocalOnlyFailureListener();
             call.resolve();
         } catch (Exception e) {
             call.reject("Failed to disconnect: " + e.getMessage(), e);
@@ -856,7 +1016,7 @@ public class CapacitorWifiPlugin extends Plugin {
         if (getPermissionState("location") == PermissionState.GRANTED) {
             connectLegacy(call);
         } else {
-            call.reject("Location permission is required");
+            rejectConnectAndClear(call, "PERMISSION_DENIED", "Location permission is required.", "permission");
         }
     }
 
@@ -923,6 +1083,337 @@ public class CapacitorWifiPlugin extends Plugin {
                 // Callback not registered
             }
             networkCallback = null;
+        }
+    }
+
+    private void clearConnectReservation() {
+        synchronized (connectLock) {
+            activeConnectCall = null;
+            connectCompleted = null;
+            pendingConnectSsid = null;
+            pendingAutoRouteTraffic = null;
+        }
+        clearConnectTimeout();
+        clearSsidVerification();
+    }
+
+    private void rejectConnectAndClear(PluginCall call, String code, String message, String stage) {
+        clearConnectReservation();
+        rejectConnect(call, code, message, stage, null, null);
+    }
+
+    private Integer resolveTimeoutMs(PluginCall call) {
+        if (!call.hasOption("timeoutMs")) {
+            return DEFAULT_CONNECT_TIMEOUT_MS;
+        }
+        Integer timeoutMs = call.getInt("timeoutMs");
+        if (timeoutMs == null || timeoutMs <= 0) {
+            return null;
+        }
+        return timeoutMs;
+    }
+
+    private boolean isValidWpaPassphrase(String password) {
+        int length = password.length();
+        if (length >= 8 && length <= 63) {
+            return true;
+        }
+        if (length == 64) {
+            for (int i = 0; i < length; i++) {
+                char c = password.charAt(i);
+                boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!hex) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private int beginConnectAttempt(PluginCall call, String ssid, Boolean autoRouteTraffic, int timeoutMs) {
+        int generation = connectGeneration.incrementAndGet();
+        synchronized (connectLock) {
+            activeConnectCall = call;
+            if (connectCompleted == null) {
+                connectCompleted = new AtomicBoolean(false);
+            } else {
+                connectCompleted.set(false);
+            }
+            pendingConnectSsid = ssid;
+            pendingAutoRouteTraffic = autoRouteTraffic;
+        }
+        clearConnectTimeout();
+        clearSsidVerification();
+        removeLocalOnlyFailureListener();
+
+        connectTimeoutRunnable = () ->
+            completeConnectFailure(
+                generation,
+                "CONNECTION_TIMEOUT",
+                "Timed out waiting for Wi-Fi connection confirmation.",
+                "verification",
+                null,
+                null,
+                true
+            );
+        connectHandler.postDelayed(connectTimeoutRunnable, timeoutMs);
+        return generation;
+    }
+
+    private boolean isCurrentConnectAttempt(int generation) {
+        return generation == connectGeneration.get();
+    }
+
+    private void startSsidVerification(int generation, @Nullable Network network, String expectedSsid, boolean keepCallbackOnSuccess) {
+        clearSsidVerification();
+        ssidVerifyRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isCurrentConnectAttempt(generation)) {
+                    return;
+                }
+                synchronized (connectLock) {
+                    if (connectCompleted == null || connectCompleted.get()) {
+                        return;
+                    }
+                }
+
+                if (ssidMatches(expectedSsid, network)) {
+                    completeConnectSuccess(generation, network, keepCallbackOnSuccess);
+                    return;
+                }
+
+                connectHandler.postDelayed(this, SSID_VERIFY_POLL_MS);
+            }
+        };
+        connectHandler.post(ssidVerifyRunnable);
+    }
+
+    private boolean ssidMatches(String expectedSsid, @Nullable Network network) {
+        String current = getConnectedSsid(network);
+        if (current == null) {
+            return false;
+        }
+        return expectedSsid.equals(current);
+    }
+
+    @Nullable
+    private String getConnectedSsid(@Nullable Network network) {
+        try {
+            if (network != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities != null) {
+                    TransportInfo transportInfo = capabilities.getTransportInfo();
+                    if (transportInfo instanceof WifiInfo) {
+                        return normalizeSsid(((WifiInfo) transportInfo).getSSID());
+                    }
+                }
+            }
+
+            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+            if (wifiInfo != null) {
+                return normalizeSsid(wifiInfo.getSSID());
+            }
+        } catch (Exception e) {
+            android.util.Log.e("CapacitorWifi", "Failed to read connected SSID: " + e.getMessage());
+        }
+        return null;
+    }
+
+    @Nullable
+    private String normalizeSsid(@Nullable String ssid) {
+        if (ssid == null || ssid.isEmpty() || "<unknown ssid>".equalsIgnoreCase(ssid)) {
+            return null;
+        }
+        if (ssid.startsWith("\"") && ssid.endsWith("\"") && ssid.length() >= 2) {
+            return ssid.substring(1, ssid.length() - 1);
+        }
+        return ssid;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private void registerLocalOnlyFailureListener(int generation, NetworkSpecifier specifier) {
+        removeLocalOnlyFailureListener();
+        if (!(specifier instanceof WifiNetworkSpecifier)) {
+            return;
+        }
+        localOnlyFailureListener = (failedSpecifier, failureReason) -> {
+            if (!isCurrentConnectAttempt(generation)) {
+                return;
+            }
+            // Only one plugin connect attempt is active at a time; accept the failure for this generation.
+            String code = mapLocalOnlyFailureReason(failureReason);
+            String stage = mapLocalOnlyFailureStage(failureReason);
+            completeConnectFailure(generation, code, "Failed to connect to network.", stage, failureReason, null, true);
+        };
+        Executor executor = (command) -> connectHandler.post(command);
+        wifiManager.addLocalOnlyConnectionFailureListener(executor, localOnlyFailureListener);
+    }
+
+    private String mapLocalOnlyFailureReason(int failureReason) {
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_AUTHENTICATION) {
+            return "AUTHENTICATION_FAILED";
+        }
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_NOT_FOUND) {
+            return "NETWORK_NOT_FOUND";
+        }
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_USER_REJECT) {
+            return "USER_DENIED";
+        }
+        // ASSOCIATION, IP_PROVISIONING, NO_RESPONSE, UNKNOWN -> CONNECTION_FAILED
+        return "CONNECTION_FAILED";
+    }
+
+    private String mapLocalOnlyFailureStage(int failureReason) {
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_AUTHENTICATION) {
+            return "authentication";
+        }
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_IP_PROVISIONING) {
+            return "ipProvisioning";
+        }
+        if (failureReason == WifiManager.STATUS_LOCAL_ONLY_CONNECTION_FAILURE_ASSOCIATION) {
+            return "association";
+        }
+        return "request";
+    }
+
+    private void completeConnectSuccess(int generation, @Nullable Network network, boolean keepCallbackOnSuccess) {
+        if (!isCurrentConnectAttempt(generation)) {
+            return;
+        }
+
+        PluginCall call;
+        Boolean autoRouteTraffic;
+        synchronized (connectLock) {
+            if (connectCompleted == null || !connectCompleted.compareAndSet(false, true)) {
+                return;
+            }
+            call = activeConnectCall;
+            autoRouteTraffic = pendingAutoRouteTraffic;
+            activeConnectCall = null;
+            pendingConnectSsid = null;
+            pendingAutoRouteTraffic = null;
+        }
+
+        clearConnectTimeout();
+        clearSsidVerification();
+        removeLocalOnlyFailureListener();
+
+        // Legacy path: bind after SSID confirmation when requested.
+        if (!keepCallbackOnSuccess && autoRouteTraffic != null && autoRouteTraffic) {
+            try {
+                synchronized (boundNetworkLock) {
+                    if (boundNetwork != null) {
+                        connectivityManager.bindProcessToNetwork(null);
+                    }
+                    Network activeNetwork = network != null ? network : connectivityManager.getActiveNetwork();
+                    if (activeNetwork != null) {
+                        boolean bound = connectivityManager.bindProcessToNetwork(activeNetwork);
+                        if (bound) {
+                            boundNetwork = activeNetwork;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.e("CapacitorWifi", "Failed to bind process to network: " + e.getMessage());
+            }
+        }
+
+        if (!keepCallbackOnSuccess && networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Legacy connect does not keep a NetworkCallback.
+        }
+
+        if (call != null) {
+            call.resolve();
+        }
+    }
+
+    private void completeConnectFailure(
+        int generation,
+        String code,
+        String message,
+        String stage,
+        @Nullable Integer nativeCode,
+        @Nullable String nativeMessage,
+        boolean cleanupNetworkCallback
+    ) {
+        if (!isCurrentConnectAttempt(generation)) {
+            return;
+        }
+
+        PluginCall call;
+        synchronized (connectLock) {
+            if (connectCompleted == null || !connectCompleted.compareAndSet(false, true)) {
+                return;
+            }
+            call = activeConnectCall;
+            activeConnectCall = null;
+            pendingConnectSsid = null;
+            pendingAutoRouteTraffic = null;
+        }
+
+        clearConnectTimeout();
+        clearSsidVerification();
+        removeLocalOnlyFailureListener();
+
+        if (cleanupNetworkCallback && networkCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                connectivityManager.unregisterNetworkCallback(networkCallback);
+            } catch (Exception ignored) {
+                // already unregistered
+            }
+            networkCallback = null;
+        }
+
+        if (call != null) {
+            rejectConnect(call, code, message, stage, nativeCode, nativeMessage);
+        }
+    }
+
+    private void rejectConnect(
+        PluginCall call,
+        String code,
+        String message,
+        String stage,
+        @Nullable Integer nativeCode,
+        @Nullable String nativeMessage
+    ) {
+        JSObject data = new JSObject();
+        data.put("platform", "android");
+        data.put("androidApiLevel", Build.VERSION.SDK_INT);
+        data.put("connectionStage", stage);
+        if (nativeCode != null) {
+            data.put("nativeCode", nativeCode);
+        }
+        if (nativeMessage != null) {
+            data.put("nativeMessage", nativeMessage);
+        }
+        call.reject(message, code, data);
+    }
+
+    private void clearConnectTimeout() {
+        if (connectTimeoutRunnable != null) {
+            connectHandler.removeCallbacks(connectTimeoutRunnable);
+            connectTimeoutRunnable = null;
+        }
+    }
+
+    private void clearSsidVerification() {
+        if (ssidVerifyRunnable != null) {
+            connectHandler.removeCallbacks(ssidVerifyRunnable);
+            ssidVerifyRunnable = null;
+        }
+    }
+
+    private void removeLocalOnlyFailureListener() {
+        if (localOnlyFailureListener != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                wifiManager.removeLocalOnlyConnectionFailureListener(localOnlyFailureListener);
+            } catch (Exception ignored) {
+                // already removed
+            }
+            localOnlyFailureListener = null;
         }
     }
 }

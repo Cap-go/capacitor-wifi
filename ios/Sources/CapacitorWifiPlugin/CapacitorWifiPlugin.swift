@@ -29,6 +29,11 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     private var hotspotManager: NEHotspotConfigurationManager?
     private var locationManager: CLLocationManager?
     private var permissionCalls: [CAPPluginCall] = []
+    private let connectLock = NSLock()
+    private var connectInProgress = false
+    private var connectGeneration = 0
+    private let defaultConnectTimeoutMs: Double = 30000
+    private let ssidVerifyPollSeconds: TimeInterval = 0.5
 
     override public func load() {
         hotspotManager = NEHotspotConfigurationManager.shared
@@ -63,12 +68,67 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
     }
 
     @objc func connect(_ call: CAPPluginCall) {
-        guard let ssid = call.getString("ssid") else {
-            call.reject("SSID is required")
+        connectLock.lock()
+        if connectInProgress {
+            connectLock.unlock()
+            rejectConnect(
+                call,
+                code: "CONNECTION_IN_PROGRESS",
+                message: "Another Wi-Fi connection attempt is already in progress.",
+                stage: "request",
+                nativeCode: nil,
+                nativeMessage: nil,
+                error: nil
+            )
+            return
+        }
+        connectInProgress = true
+        connectGeneration += 1
+        let generation = connectGeneration
+        connectLock.unlock()
+
+        guard let ssid = call.getString("ssid"), !ssid.isEmpty else {
+            finishConnectAttempt(generation)
+            rejectConnect(
+                call,
+                code: "INVALID_CONFIGURATION",
+                message: "SSID is required.",
+                stage: "validation",
+                nativeCode: nil,
+                nativeMessage: nil,
+                error: nil
+            )
+            return
+        }
+
+        guard let timeoutMs = resolveTimeoutMs(call) else {
+            finishConnectAttempt(generation)
+            rejectConnect(
+                call,
+                code: "INVALID_CONFIGURATION",
+                message: "timeoutMs must be a positive number.",
+                stage: "validation",
+                nativeCode: nil,
+                nativeMessage: nil,
+                error: nil
+            )
             return
         }
 
         let password = call.getString("password")
+        if let password = password, !password.isEmpty, !isValidWpaPassphrase(password) {
+            finishConnectAttempt(generation)
+            rejectConnect(
+                call,
+                code: "INVALID_CONFIGURATION",
+                message: "Invalid WPA passphrase format.",
+                stage: "validation",
+                nativeCode: nil,
+                nativeMessage: nil,
+                error: nil
+            )
+            return
+        }
 
         let configuration: NEHotspotConfiguration
         if let password = password, !password.isEmpty {
@@ -78,13 +138,47 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
         }
 
         configuration.joinOnce = false
+        let deadline = Date().addingTimeInterval(timeoutMs / 1000.0)
 
-        hotspotManager?.apply(configuration) { error in
-            if let error = error {
-                call.reject("Failed to connect: \(error.localizedDescription)", nil, error)
-            } else {
-                call.resolve()
+        guard let manager = hotspotManager else {
+            finishConnectAttempt(generation)
+            rejectConnect(
+                call,
+                code: "UNKNOWN",
+                message: "Hotspot configuration manager is unavailable.",
+                stage: "request",
+                nativeCode: nil,
+                nativeMessage: nil,
+                error: nil
+            )
+            return
+        }
+
+        manager.apply(configuration) { [weak self] error in
+            guard let self = self else { return }
+
+            if let error = error as NSError? {
+                if error.domain == NEHotspotConfigurationErrorDomain,
+                   error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue {
+                    self.verifyConnectedSsid(ssid, generation: generation, deadline: deadline, call: call)
+                    return
+                }
+
+                let mapped = self.mapHotspotConfigurationError(error)
+                self.finishConnectAttempt(generation)
+                self.rejectConnect(
+                    call,
+                    code: mapped.code,
+                    message: mapped.message,
+                    stage: mapped.stage,
+                    nativeCode: error.code,
+                    nativeMessage: error.localizedDescription,
+                    error: error
+                )
+                return
             }
+
+            self.verifyConnectedSsid(ssid, generation: generation, deadline: deadline, call: call)
         }
     }
 
@@ -282,6 +376,124 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
     @objc func getPluginVersion(_ call: CAPPluginCall) {
         call.resolve(["version": self.pluginVersion])
+    }
+
+
+    private func resolveTimeoutMs(_ call: CAPPluginCall) -> Double? {
+        if !call.hasOption("timeoutMs") {
+            return defaultConnectTimeoutMs
+        }
+        if let value = call.getDouble("timeoutMs") {
+            return value > 0 ? value : nil
+        }
+        if let value = call.getInt("timeoutMs") {
+            return value > 0 ? Double(value) : nil
+        }
+        return nil
+    }
+
+    private func finishConnectAttempt(_ generation: Int) {
+        connectLock.lock()
+        if connectGeneration == generation {
+            connectInProgress = false
+        }
+        connectLock.unlock()
+    }
+
+    private func isCurrentConnectAttempt(_ generation: Int) -> Bool {
+        connectLock.lock()
+        defer { connectLock.unlock() }
+        return connectGeneration == generation && connectInProgress
+    }
+
+    private func verifyConnectedSsid(_ expectedSsid: String, generation: Int, deadline: Date, call: CAPPluginCall) {
+        Task { [weak self] in
+            guard let self = self else { return }
+
+            while true {
+                guard self.isCurrentConnectAttempt(generation) else { return }
+
+                if Date() > deadline {
+                    self.finishConnectAttempt(generation)
+                    self.rejectConnect(
+                        call,
+                        code: "CONNECTION_TIMEOUT",
+                        message: "Timed out waiting for Wi-Fi connection confirmation.",
+                        stage: "verification",
+                        nativeCode: nil,
+                        nativeMessage: nil,
+                        error: nil
+                    )
+                    return
+                }
+
+                if let current = await self.fetchCurrentNetwork()?.ssid, current == expectedSsid {
+                    self.finishConnectAttempt(generation)
+                    call.resolve()
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: UInt64(self.ssidVerifyPollSeconds * 1_000_000_000))
+            }
+        }
+    }
+
+    private func isValidWpaPassphrase(_ password: String) -> Bool {
+        let length = password.count
+        if length >= 8 && length <= 63 {
+            return true
+        }
+        if length == 64 {
+            let hex = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+            return password.unicodeScalars.allSatisfy { hex.contains($0) }
+        }
+        return false
+    }
+
+    private func mapHotspotConfigurationError(_ error: NSError) -> (code: String, message: String, stage: String) {
+        guard error.domain == NEHotspotConfigurationErrorDomain,
+              let hotspotError = NEHotspotConfigurationError(rawValue: error.code) else {
+            return ("UNKNOWN", "An unexpected Wi-Fi connection error occurred.", "request")
+        }
+
+        switch hotspotError {
+        case .invalidSSID, .invalidSSIDPrefix, .invalidWPAPassphrase, .invalidWEPPassphrase,
+             .invalidEAPSettings, .invalidHS20Settings, .invalidHS20DomainName:
+            return ("INVALID_CONFIGURATION", "Invalid Wi-Fi connection configuration.", "validation")
+        case .userDenied:
+            return ("USER_DENIED", "The user denied the Wi-Fi connection request.", "request")
+        case .pending:
+            return ("CONNECTION_IN_PROGRESS", "Another Wi-Fi connection attempt is already in progress.", "request")
+        case .internal, .systemConfiguration, .joinOnceNotSupported, .applicationIsNotInForeground:
+            return ("CONNECTION_FAILED", "Failed to connect to network.", "request")
+        case .invalid, .unknown:
+            return ("UNKNOWN", "An unexpected Wi-Fi connection error occurred.", "request")
+        case .alreadyAssociated:
+            return ("CONNECTION_FAILED", "Failed to connect to network.", "verification")
+        @unknown default:
+            return ("CONNECTION_FAILED", "Failed to connect to network.", "request")
+        }
+    }
+
+    private func rejectConnect(
+        _ call: CAPPluginCall,
+        code: String,
+        message: String,
+        stage: String,
+        nativeCode: Int?,
+        nativeMessage: String?,
+        error: Error?
+    ) {
+        var data = JSObject()
+        data["platform"] = "ios"
+        data["connectionStage"] = stage
+        if let nativeCode = nativeCode {
+            data["nativeCode"] = nativeCode
+        }
+        if let nativeMessage = nativeMessage {
+            data["nativeMessage"] = nativeMessage
+        }
+        call.reject(message, code, error, data)
     }
 
     // MARK: - Helper Methods
