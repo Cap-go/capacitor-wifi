@@ -43,7 +43,6 @@ jobs:
                   '',
                   'The workflow will:',
                   '- stage a prerelease package on the `beta` tag (2FA approve runs in Cap-go/automations)',
-                  `- add a pinned \`pr-${pr.number}\` dist-tag for this exact PR build`,
                   '- update this comment with the install command',
                   '',
                   'Security note: beta publish is only enabled for branches inside this repository.',
