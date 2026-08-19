@@ -123,7 +123,7 @@ jobs:
               '',
               `Requested by @${actor}.`,
               '',
-              `This run will publish the PR head to the \`beta\` npm tag and refresh \`pr-${prNumber}\`.`,
+              `This run will stage the PR head for the \`beta\` npm tag and refresh \`pr-${prNumber}\` after approval.`,
               '',
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
             ].join('\n');
@@ -201,15 +201,42 @@ jobs:
           node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish to npm beta
+      - name: Install npm CLI for staged publishing
+        run: npm install -g npm@^11.15.0
+
+      - name: Stage publish to npm beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --tag beta --provenance --access public --ignore-scripts
+        run: |
+          npm --version
+          npm stage publish --access public --tag beta --provenance --ignore-scripts
+
+      - name: Request stage approval
+        env:
+          GH_TOKEN: ${{ secrets.NPM_STAGE_DISPATCH_TOKEN }}
+        run: |
+          gh api --method POST repos/Cap-go/automations/dispatches \
+            -f event_type=npm-stage-approve \
+            -f "client_payload[repository]=${GITHUB_REPOSITORY}" \
+            -f "client_payload[run_id]=${GITHUB_RUN_ID}" \
+            -f "client_payload[package]=${{ steps.version.outputs.package_name }}"
 
       - name: Add PR dist-tag
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm dist-tag add "${{ steps.version.outputs.package_name }}@${{ steps.version.outputs.version }}" "pr-${{ steps.pr.outputs.pr_number }}"
+        run: |
+          pkg="${{ steps.version.outputs.package_name }}"
+          ver="${{ steps.version.outputs.version }}"
+          tag="pr-${{ steps.pr.outputs.pr_number }}"
+          for i in $(seq 1 18); do
+            if npm view "${pkg}@${ver}" version >/dev/null 2>&1; then
+              npm dist-tag add "${pkg}@${ver}" "${tag}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "staged version is not live yet; check Cap-go/automations npm Stage Approve"
+          exit 1
 
       - name: Publish success comment
         if: ${{ success() }}

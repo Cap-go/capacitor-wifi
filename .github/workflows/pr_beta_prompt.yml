@@ -42,7 +42,7 @@ jobs:
                   'Comment `/publish-beta` after the PR checks are green.',
                   '',
                   'The workflow will:',
-                  '- publish a prerelease package on the `beta` tag',
+                  '- stage a prerelease package on the `beta` tag (2FA approve runs in Cap-go/automations)',
                   `- add a pinned \`pr-${pr.number}\` dist-tag for this exact PR build`,
                   '- update this comment with the install command',
                   '',
