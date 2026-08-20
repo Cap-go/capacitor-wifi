@@ -42,7 +42,7 @@ jobs:
                   'Comment `/publish-beta` after the PR checks are green.',
                   '',
                   'The workflow will:',
-                  '- stage a prerelease package on the `beta` tag (2FA approve runs in Cap-go/automations)',
+                  '- publish a prerelease package on the `beta` tag',
                   '- update this comment with the install command',
                   '',
                   'Security note: beta publish is only enabled for branches inside this repository.',
