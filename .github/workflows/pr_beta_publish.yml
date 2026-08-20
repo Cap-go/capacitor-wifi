@@ -213,6 +213,7 @@ jobs:
           npm stage publish --access public --tag beta --provenance --ignore-scripts
 
       - name: Request stage approval
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.NPM_STAGE_DISPATCH_TOKEN }}
         run: |
@@ -238,7 +239,7 @@ jobs:
               '',
               '## Beta npm build',
               '',
-              'Status: published',
+              'Status: staged',
               '',
               `Version: \`${version}\``,
               `Source: \`${shortSha}\``,
