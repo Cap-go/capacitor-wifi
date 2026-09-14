@@ -1103,7 +1103,7 @@ public class CapacitorWifiPlugin extends Plugin {
     }
 
     private Integer resolveTimeoutMs(PluginCall call) {
-        if (!call.hasOption("timeoutMs")) {
+        if (!call.getData().has("timeoutMs")) {
             return DEFAULT_CONNECT_TIMEOUT_MS;
         }
         Integer timeoutMs = call.getInt("timeoutMs");

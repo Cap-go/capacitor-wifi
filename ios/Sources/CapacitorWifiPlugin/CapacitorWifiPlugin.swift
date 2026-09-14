@@ -380,7 +380,7 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
 
 
     private func resolveTimeoutMs(_ call: CAPPluginCall) -> Double? {
-        if !call.hasOption("timeoutMs") {
+        guard let raw = call.getValue("timeoutMs"), !(raw is NSNull) else {
             return defaultConnectTimeoutMs
         }
         if let value = call.getDouble("timeoutMs") {
