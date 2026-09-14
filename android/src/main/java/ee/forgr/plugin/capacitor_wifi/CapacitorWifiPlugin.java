@@ -56,7 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 )
 public class CapacitorWifiPlugin extends Plugin {
 
-    private final String pluginVersion = "8.5.2";
+    private final String pluginVersion = "8.5.3";
 
     private WifiManager wifiManager;
     private ConnectivityManager connectivityManager;
