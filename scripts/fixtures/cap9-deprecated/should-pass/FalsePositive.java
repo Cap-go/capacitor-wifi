@@ -1,6 +1,7 @@
 package fixture;
 
 public class FalsePositive {
+
     void demo(Object settings) {
         settings.hasOption("ignored");
         String msg = "call.hasOption(\"in-string\")";
