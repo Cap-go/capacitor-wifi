@@ -21,7 +21,7 @@ Manage Wi-Fi from your Capacitor app: connect to networks, read the current SSID
 - **Current network**: `getSsid()`, `getIpAddress()` and `getWifiInfo()`.
 - **Scanning on Android**: `startScan()`, `getAvailableNetworks()`, `getRssi()` and the `networksScanned` event.
 - **Saved networks and sharing**: `isNetworkSaved()` and `shareNetwork()`.
-- **Permissions**: location permission helpers required for Wi-Fi details.
+- **Permissions**: location permission helpers. On Android, scans, SSID, RSSI and `getWifiInfo()` need location permission.
 - **Platforms**: iOS and Android. iOS uses NetworkExtension hotspot configuration, so some calls are Android only. Not available on web.
 
 ## Why Capacitor WiFi?
