@@ -46,6 +46,16 @@ case "$platform" in
     bunx cap sync android
     cd android
     ./gradlew build test
+    ./gradlew :app:assembleRelease
+    mapping_file="app/build/outputs/mapping/release/mapping.txt"
+    if [ ! -f "$mapping_file" ]; then
+      echo "Expected R8 mapping at $mapping_file after assembleRelease"
+      exit 1
+    fi
+    if ! grep -q 'ee\.forgr\.plugin\.capacitor_wifi\.CapacitorWifiPlugin' "$mapping_file"; then
+      echo "CapacitorWifiPlugin missing from mapping.txt; check consumer ProGuard rules"
+      exit 1
+    fi
     ;;
   ios)
     if [ ! -d ios ]; then

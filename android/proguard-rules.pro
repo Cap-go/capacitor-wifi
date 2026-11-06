@@ -5,5 +5,5 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep plugin classes
--keep class ee.forgr.plugin.capacitor_wifi.** { *; }
+# Library release minify is off; rules that must apply to consuming apps live in consumer-rules.pro
+# (wired via consumerProguardFiles in build.gradle).
