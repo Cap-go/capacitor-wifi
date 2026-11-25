@@ -5,7 +5,7 @@ import test from 'node:test';
 test('ConnectOptions exposes joinOnce with default documented', () => {
   const defs = readFileSync('src/definitions.ts', 'utf8');
   assert.match(defs, /joinOnce\?: boolean/);
-  assert.match(defs, /@default false[\s\S]*joinOnce\?: boolean|joinOnce\?: boolean[\s\S]*@default false/);
+  assert.match(defs, /@default false\s*\*\/\s*joinOnce\?: boolean/);
 });
 
 test('iOS connect forwards joinOnce to NEHotspotConfiguration', () => {

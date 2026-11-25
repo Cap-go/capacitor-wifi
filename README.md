@@ -30,7 +30,7 @@ We build, improve and fix our plugins with heavy use of AI, so issues usually ge
 
 ## Key features
 
-- **Connect**: `connect()`, `addNetwork()` and `disconnect()`. On iOS, pass `joinOnce: true` to `connect()` for temporary accessory Wi-Fi that clears when the app exits or sleeps.
+- **Connect**: `connect()`, `addNetwork()` and `disconnect()`. On iOS, pass `joinOnce: true` to `connect()` for temporary accessory Wi-Fi that clears when the app exits, sleeps, or remains in the background for more than 15 seconds.
 - **Current network**: `getSsid()`, `getIpAddress()` and `getWifiInfo()`.
 - **Scanning on Android**: `startScan()`, `getAvailableNetworks()`, `getRssi()` and the `networksScanned` event.
 - **Saved networks and sharing**: `isNetworkSaved()` and `shareNetwork()`.
