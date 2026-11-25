@@ -30,7 +30,7 @@ We build, improve and fix our plugins with heavy use of AI, so issues usually ge
 
 ## Key features
 
-- **Connect**: `connect()`, `addNetwork()` and `disconnect()`.
+- **Connect**: `connect()`, `addNetwork()` and `disconnect()`. On iOS, pass `joinOnce: true` to `connect()` for temporary accessory Wi-Fi that clears when the app exits, sleeps, or remains in the background for more than 15 seconds.
 - **Current network**: `getSsid()`, `getIpAddress()` and `getWifiInfo()`.
 - **Scanning on Android**: `startScan()`, `getAvailableNetworks()`, `getRssi()` and the `networksScanned` event.
 - **Saved networks and sharing**: `isNetworkSaved()` and `shareNetwork()`.
@@ -151,7 +151,8 @@ Connect to a Wi-Fi network.
 On Android, this creates a temporary connection that doesn't route traffic through the network by default.
 Set autoRouteTraffic to true to bind app traffic to the connected network (useful for local/device-hosted APs).
 For a persistent connection on Android, use addNetwork() instead.
-On iOS, this creates a persistent connection.
+On iOS, this creates a persistent connection by default.
+Set `joinOnce` to `true` on iOS for a temporary connection that is removed when the app quits, sleeps, or stays in the background for more than 15 seconds.
 
 Resolves only after the device is confirmed associated with the requested SSID.
 On failure, rejects with a Capacitor error that includes a stable `code`
@@ -462,6 +463,7 @@ Options for connecting to a network
 | **`isHiddenSsid`**     | <code>boolean</code> | Whether the network is hidden (Android only)                                                                                                                                                                                                                                                                                        | <code>false</code> | 7.0.0 |
 | **`autoRouteTraffic`** | <code>boolean</code> | Whether to automatically route app traffic through the connected Wi-Fi network (Android only) When enabled, it binds the app process to the connected network using ConnectivityManager.bindProcessToNetwork() This is useful for connecting to local/device-hosted APs (e.g., ESP32, IoT devices) that don't have internet access. | <code>false</code> | 7.0.0 |
 | **`timeoutMs`**        | <code>number</code>  | Maximum time in milliseconds to wait for confirmation that the device is associated with the requested SSID before rejecting with `CONNECTION_TIMEOUT`. Must be a positive number when provided.                                                                                                                                    | <code>30000</code> | 8.5.0 |
+| **`joinOnce`**         | <code>boolean</code> | Whether the iOS hotspot configuration should be removed after the app quits, the device sleeps, or the app stays in the background for more than 15 seconds (iOS only). Maps to `NEHotspotConfiguration.joinOnce`.                                                                                                                  | <code>false</code> | 8.6.0 |
 
 
 #### DisconnectOptions

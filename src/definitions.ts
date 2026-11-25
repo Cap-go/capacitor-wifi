@@ -32,7 +32,8 @@ export interface CapacitorWifiPlugin {
    * On Android, this creates a temporary connection that doesn't route traffic through the network by default.
    * Set autoRouteTraffic to true to bind app traffic to the connected network (useful for local/device-hosted APs).
    * For a persistent connection on Android, use addNetwork() instead.
-   * On iOS, this creates a persistent connection.
+   * On iOS, this creates a persistent connection by default.
+   * Set `joinOnce` to `true` on iOS for a temporary connection that is removed when the app quits, sleeps, or stays in the background for more than 15 seconds.
    *
    * Resolves only after the device is confirmed associated with the requested SSID.
    * On failure, rejects with a Capacitor error that includes a stable `code`
@@ -422,6 +423,16 @@ export interface ConnectOptions {
    * @default 30000
    */
   timeoutMs?: number;
+
+  /**
+   * Whether the iOS hotspot configuration should be removed after the app quits, the device sleeps,
+   * or the app stays in the background for more than 15 seconds (iOS only).
+   * Maps to `NEHotspotConfiguration.joinOnce`.
+   *
+   * @since 8.6.0
+   * @default false
+   */
+  joinOnce?: boolean;
 }
 
 /**
