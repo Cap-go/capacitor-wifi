@@ -137,7 +137,7 @@ public class CapacitorWifiPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManager
             configuration = NEHotspotConfiguration(ssid: ssid)
         }
 
-        configuration.joinOnce = false
+        configuration.joinOnce = call.getBool("joinOnce") ?? false
         let deadline = Date().addingTimeInterval(timeoutMs / 1000.0)
 
         guard let manager = hotspotManager else {
